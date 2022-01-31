@@ -1,5 +1,6 @@
 ﻿using CoinGecko.Clients;
 using CoinGecko.Entities.Response.Coins;
+using DCA_profitability.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,11 +28,11 @@ namespace DCA_profitability.Helpers
             for (var i = 0; i < MarketData.Count; i++) // Loop through the top 100
             {
                 Console.Write($"\rProgress: {(i / 50f) * 100}%");
-                var toAction = new List<PriceOnDate>();
+                var toAction = new List<TimestampedPrice>();
                 var purchases = new List<CoinPurchase>();
                 try
                 {
-                    var priceData = (await _client.CoinsClient.GetMarketChartsByCoinId(MarketData[i].Id, "usd", (DateTime.Today - Start).TotalDays.ToString())).Prices.Select(x => new PriceOnDate((decimal)x[0], (decimal)x[1])).ToList();
+                    var priceData = (await _client.CoinsClient.GetMarketChartsByCoinId(MarketData[i].Id, "usd", (DateTime.Today - Start).TotalDays.ToString())).Prices.Select(x => new TimestampedPrice((decimal)x[0], (decimal)x[1])).ToList();
                     var endingPrice = priceData[priceData.Count - 1].Price;
 
                     priceData.ForEachWithIndex((val, index) =>
@@ -86,20 +87,6 @@ namespace DCA_profitability.Helpers
             int idx = 0;
             foreach (T item in enumerable)
                 handler(item, idx++);
-        }
-    }
-
-    class PriceOnDate
-    {
-        public DateTime Date { get; set; }
-        public decimal Price { get; set; }
-        public PriceOnDate(decimal timestamp, decimal price) => (Date, Price) = (UnixTimeStampToDateTime((long)timestamp), price);
-
-        private DateTime UnixTimeStampToDateTime(long unixTimeStamp)
-        {
-            DateTimeOffset dateTimeOffSet = DateTimeOffset.FromUnixTimeMilliseconds(unixTimeStamp);
-            DateTime dateTime = dateTimeOffSet.DateTime;
-            return dateTime;
         }
     }
 
