@@ -1,6 +1,7 @@
 ﻿using Crypto_Tools.DAL;
 using Crypto_Tools.Services;
 using Microsoft.Extensions.Options;
+using Server.Services;
 
 namespace Crypto_Tools;
 
@@ -27,6 +28,7 @@ public class Startup
         services.AddSingleton<IMarketCapService, MarketCapService>();
         services.AddSingleton<ICoinPriceService, CoinPriceService>();
 
+        services.AddHostedService<CoinPriceTimerService>();
         services.AddHostedService<MarketCapCollectionService>();
 
         services.AddEndpointsApiExplorer();
