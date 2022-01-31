@@ -1,6 +1,7 @@
 ﻿using Crypto_Tools.DAL;
 using Crypto_Tools.DAL.Models;
 using Crypto_Tools.Helpers;
+using Server.Models;
 
 namespace Crypto_Tools.PortfolioStrategies;
 
@@ -11,23 +12,23 @@ internal class TopCoinsETF
     public TopCoinsETF(IMarketCapService mcapService, ICoinPriceService coinPriceService) => (_mcapService, _priceService) = (mcapService, coinPriceService);
     public enum DcaInterval
     {
-        Weekly,
-        Monthly
+        weekly,
+        monthly
     }
 
     private readonly Dictionary<string, List<float>>  _purchases = new();
     private Dictionary<string, List<TimestampedPrice>> _prices = new();
 
-    internal async Task<List<float>?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate)
+    internal async Task<List<PortfolioSnapshot>?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate)
     {
         var carriedFunds = 0f;
-        var portfolioValue = new List<float>();
-
+        var portfolioValue = new List<PortfolioSnapshot>();
+        
         var mcapData = await _mcapService.GetBetweenDates(startDate, endDate);
         var coins = mcapData.Select(x => x.Coins.Take(numCoins)).SelectMany(x => x).Distinct().ToList();
         _prices = await GetPrices(coins, startDate, endDate);
 
-        var monthCount = 0;
+        var periodCount = 0;
         TopMarketCap? period = mcapData.First();
         var currMcapPosition = 1;
 
@@ -35,13 +36,14 @@ internal class TopCoinsETF
 
         while (period != null)
         {
-            monthCount += 1;
+            periodCount += 1;
+            
             var extraFunds = SellDropped(period.Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, period.Date); // Sell any coins that have left the selected total num coins + 10% and reallocate
 
             var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / numCoins;
             carriedFunds = 0f;
             var carryingFunds = 0f;
-            portfolioValue.Add(0f);
+            var currentValue = 0f;
 
             for (var i = 0; i < period.Coins.Count; i++)
             {
@@ -57,23 +59,36 @@ internal class TopCoinsETF
 
                     if (!_purchases.ContainsKey(coin)) _purchases.Add(coin, new List<float>());
                     if (i < numCoins) _purchases[coin].Add(totDcaAmnt / (float)coinPrice);
-                    portfolioValue[^1] += (float)coinPrice * _purchases[coin].Sum();
-                    var progress = Math.Round(((double)i / period.Coins.Count) * 100);
+                    currentValue += (float)coinPrice * _purchases[coin].Sum();
                 }
                 catch
                 {
 
                 }
             }
-            var portfolioBalance = portfolioValue[^1] + carryingFunds;
+            var snapshot = new PortfolioSnapshot
+            {
+                Date = period.Date,
+                Value = currentValue,
+                Spent = periodCount * dcaAmnt
+            };
+            portfolioValue.Add(snapshot);
             carriedFunds += carryingFunds;
 
             period = interval switch
             {
-                DcaInterval.Weekly => mcapData.Skip(currMcapPosition).First(),
-                DcaInterval.Monthly => mcapData.Skip(currMcapPosition).First(x => x.Date.Month > period.Date.Month),
+                DcaInterval.weekly => mcapData.Skip(currMcapPosition).FirstOrDefault(),
+                DcaInterval.monthly => mcapData.Skip(currMcapPosition).FirstOrDefault(x => {
+                    if(period.Date.Month == 12) return x.Date.Month == 1;
+                    else return x.Date.Month > period.Date.Month;
+                }),
                 _ => null
             };
+
+            if(period != null){
+                var newIndex = mcapData.FindIndex(x=>x.Date == period!.Date);
+                if(newIndex != -1) currMcapPosition = newIndex;
+            }
         }
 
         return portfolioValue;
@@ -101,22 +116,9 @@ internal class TopCoinsETF
         foreach (var coin in coins)
         {
             var storedCoin = await _priceService.Find(coin);
-            if (storedCoin == null)
-            {
-                var newCoin = await CoinGeckoStaticHelpers.GetPrice(coin);
-                storedCoin = await _priceService.Create(newCoin);
-            }
-
+            if (storedCoin == null) continue;
             var prices = storedCoin!.Prices.Where(x => x.Date >= start && x.Date <= end).ToList();
-            if (prices.Count == 0)
-            {
-                var lastPrice = storedCoin.Prices.OrderBy(x => x.Date).Last();
-                if (lastPrice.Date < end.AddDays(-7))
-                {
-                    var newCoin = await CoinGeckoStaticHelpers.GetPrice(coin);
-                    storedCoin = await _priceService.Create(newCoin);
-                }
-            }
+            if (prices.Count == 0) continue;
             res.Add(coin, prices);
         }
         return res;
