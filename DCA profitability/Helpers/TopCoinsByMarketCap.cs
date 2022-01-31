@@ -136,7 +136,7 @@ namespace DCA_profitability.Helpers
                 }
                 return res;
             }
-            catch (Exception ex)
+            catch
             {
                 return null;
             }
