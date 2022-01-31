@@ -27,7 +27,7 @@ public class CoinGeckoStaticHelpers
         return symbol;
     }
 
-    public static async Task<CoinPrice> GetPrice(string coin)
+    public static async Task<CoinPrice?> GetPrice(string coin)
     {
         try
         {

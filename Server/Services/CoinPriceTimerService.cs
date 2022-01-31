@@ -23,6 +23,7 @@ namespace Server.Services
                 var storedCoin = await _coinPriceService.Find(coin);
                 if(storedCoin != null && storedCoin.Prices.OrderBy(x=>x.Date).Last().Date > DateTime.Today.AddDays(-7)) continue;
                 var price = await CoinGeckoStaticHelpers.GetPrice(coin);
+                if(price == null) continue;
                 if(storedCoin == null) await _coinPriceService.Create(price);
                 else {
                     price.Id = storedCoin.Id;
