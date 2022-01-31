@@ -40,7 +40,7 @@ namespace Crypto_Tools.DAL
         }
 
         public async Task<ReplaceOneResult> Update(CoinPrice coinIn) =>
-            (await _coinPrices.ReplaceOneAsync(mcap => mcap.Id == coinIn.Id, coinIn));
+            (await _coinPrices.ReplaceOneAsync(coin => coin.Id == coinIn.Id, coinIn));
 
         public async Task<DeleteResult> Remove(string id) =>
             await _coinPrices.DeleteOneAsync(coin => coin.Id == id);
