@@ -7,7 +7,7 @@ namespace DCA_profitability
         static async Task Main(string[] args)
         {
             var etf = new TopCoinETF();
-            await etf.Run("TopCoinsByMonth.json", 100);
+            await etf.Run("TopCoinsByMonth.json", 100, 100);
         }
     }
 }
