@@ -1,7 +1,6 @@
 ﻿using Crypto_Tools.DAL;
 using Crypto_Tools.Services;
 using Microsoft.Extensions.Options;
-using Server.Services;
 
 namespace Crypto_Tools;
 

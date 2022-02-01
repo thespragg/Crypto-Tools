@@ -1,8 +1,8 @@
 ﻿using System.Globalization;
 using Crypto_Tools.DAL;
+using Crypto_Tools.Models;
 using Crypto_Tools.PortfolioStrategies;
 using Microsoft.AspNetCore.Mvc;
-using static Crypto_Tools.PortfolioStrategies.TopCoinsETF;
 
 namespace Crypto_Tools.Controllers;
 
