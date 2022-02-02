@@ -12,6 +12,7 @@ public class GenericDCA
     public async Task<SimulationResult?> Run(List<CoinAllocation> allocations, int amnt, DcaInterval interval, DateTime start, DateTime end)
     {
         var coins = allocations.Select(x => x.Name).Distinct().ToList();
+        var lastKnownPrices = new Dictionary<string,float>();
         _prices = await GetPrices(coins, start, end);
 
         DateTime? period = start;
@@ -25,8 +26,10 @@ public class GenericDCA
         foreach (var coin in coins)
         {
             coinProfits.Add(coin, new CoinPriceHolder());
+            lastKnownPrices.Add(coin, 0f);
             portfolio.Add(coin, 0f);
         }
+        var notSpent = 0f;
 
         while (period != null)
         {
@@ -35,22 +38,23 @@ public class GenericDCA
             var snapshot = new PortfolioSnapshot()
             {
                 Date = (DateTime)period,
-                
+
             };
 
-            var notSpent = 0f;
-            foreach(var coinAllocation in allocations)
+            foreach (var coinAllocation in allocations)
             {
-                var dcaAmnt = amnt * (coinAllocation.Allocation / 100);
+                var dcaAmnt = amnt * ((float)coinAllocation.Allocation / 100);
                 var currPrice = GetPriceOnDate(coinAllocation.Name, (DateTime)period);
-                if (currPrice == null)
+                if (currPrice != null && currPrice != 0)
                 {
-                    notSpent += dcaAmnt;
-                    continue;
+                    lastKnownPrices[coinAllocation.Name] = (float)currPrice;
+                    portfolio[coinAllocation.Name] += dcaAmnt / (float)currPrice;
+                    coinProfits[coinAllocation.Name].Spent += dcaAmnt;
                 }
-                portfolio[coinAllocation.Name] += dcaAmnt / (float)currPrice;
-                coinProfits[coinAllocation.Name].Spent += dcaAmnt;
-                var value = portfolio[coinAllocation.Name] * (float)currPrice;
+                else notSpent += dcaAmnt;
+                
+                if(currPrice == null || currPrice == 0) currPrice = lastKnownPrices[coinAllocation.Name];
+                var value = portfolio[coinAllocation.Name] * (float)currPrice!;
                 coinProfits[coinAllocation.Name].Value = value;
                 snapshot.Value += value;
             }
