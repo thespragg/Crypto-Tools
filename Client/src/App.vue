@@ -40,16 +40,21 @@
       </div>
     </div>
     <ETF v-if="page == 1" />
-    <GenericDCA v-if="page == 2"/>
+    <GenericDCA :coins="coins" v-if="page == 2"/>
   </div>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, inject } from "vue";
 import ETF from "./Views/ETF.vue";
 import GenericDCA from "./Views/GenericDCA.vue"
-
+const coins = ref([])
+const http = inject("$http");
 const page = ref(0);
+http.get("coin").then(
+  (res) =>
+    coins.value = res.data
+);
 </script>
 
 <style>
