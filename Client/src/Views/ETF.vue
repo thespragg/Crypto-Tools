@@ -108,7 +108,7 @@
 
     <div class="w-full rounded bg-gray-200 mt-6" v-if="portfolio || running">
       <n-spin :size="100" class="p-12" v-if="running">
-        <template #description> Running simulation </template>
+        <template #description> Running Backtest </template>
       </n-spin>
       <div v-if="portfolio" class="flex justify-center flex-col items-center">
         <LineChart
@@ -207,9 +207,7 @@ const etf = ref({
 
 const running = ref(false);
 const err = ref(null);
-const dateDisabled = (ts) => {
-  return ts < new Date("2013-01-01");
-};
+const dateDisabled = (ts) => ts < new Date("2013-01-01");
 
 const parseDate = (str) => {
   var y = str.substr(0, 4),

@@ -8,7 +8,7 @@
         <p>|</p>
         <p class="cursor-pointer lato w-1/3" @click="page = 1">ETF simulator</p>
         <p>|</p>
-        <p class="cursor-pointer lato w-1/3" @click="page = 1">DCA portfolio</p>
+        <p class="cursor-pointer lato w-1/3" @click="page = 2">DCA portfolio</p>
       </div>
     </div>
 
@@ -16,8 +16,8 @@
       <div class="mt-10 text-lg text-justify p-10 md:text-center">
         <p class="mb-4">Welcome!</p>
         <p class="mb-4">
-          This site was made to generate various
-          portfolio simulations based on past data.
+          This site was made to backtest various
+          portfolio strategies using data from 2013 to now.
         </p>
         <p class="mb-4">
           If you'd like to see the video this website was created for see below,
@@ -25,14 +25,14 @@
           started!
         </p>
         <p>
-          Also, if you'd like to suggest a portfolio simulation, leave it as a
+          Also, if you'd like to suggest a portfolio strategy, leave it as a
           comment on the video and if it's possible I'll add it!
         </p>
-        <div class="w-2/3 mx-auto mt-10">
+        <div class="w-1/3 mx-auto mt-10">
           <div class="p-bottom-56 overflow-hidden h-0 max-w-full relative">
             <iframe
               class="absolute inset-0 w-full h-full"
-              src="https://www.youtube.com/embed/z9Ul9ccDOqE"
+              src="https://www.youtube.com/embed/ScMzIvxBSi4"
               frameborder="0"
             ></iframe>
           </div>
@@ -40,12 +40,14 @@
       </div>
     </div>
     <ETF v-if="page == 1" />
+    <GenericDCA v-if="page == 2"/>
   </div>
 </template>
 
 <script setup>
 import { ref } from "vue";
 import ETF from "./Views/ETF.vue";
+import GenericDCA from "./Views/GenericDCA.vue"
 
 const page = ref(0);
 </script>
