@@ -16,7 +16,7 @@ public class ETFController : ControllerBase
 
 
     [HttpGet]
-    public async Task<IActionResult> Get(int amnt, int coins, string interval, string start, string end)
+    public async Task<IActionResult> Get(int amnt, int coins, string interval, string start, string end, string? ignored = null)
     {
         if (coins > 500) return BadRequest();
         if (!Enum.TryParse(typeof(DcaInterval), interval, out var parsedInterval)) return BadRequest();
@@ -25,7 +25,8 @@ public class ETFController : ControllerBase
             var startDate = DateTime.ParseExact(start, "yyyyMMdd", CultureInfo.InvariantCulture);
             var endDate = DateTime.ParseExact(end, "yyyyMMdd", CultureInfo.InvariantCulture);
             var etf = new TopCoinsETF(_mcapService, _priceService);
-            return Ok(await etf.Run(amnt, coins, (DcaInterval)parsedInterval!, startDate, endDate));
+            var ignoredCoins = ignored != null ? ignored.Split(",") : Array.Empty<string>();
+            return Ok(await etf.Run(amnt, coins, (DcaInterval)parsedInterval!, startDate, endDate, ignoredCoins.Select(x=>x.ToLower()).ToArray()));
         }
         catch(Exception ex)
         {

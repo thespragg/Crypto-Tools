@@ -9,50 +9,60 @@ internal class TopCoinsETF
     private readonly ICoinPriceService _priceService;
     private readonly IMarketCapService _mcapService;
     public TopCoinsETF(IMarketCapService mcapService, ICoinPriceService coinPriceService) => (_mcapService, _priceService) = (mcapService, coinPriceService);
-    private readonly Dictionary<string, List<float>>  _purchases = new();
+    private readonly Dictionary<string, List<float>> _purchases = new();
     private Dictionary<string, List<TimestampedPrice>> _prices = new();
 
-    internal async Task<SimulationResult?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate)
+    internal async Task<SimulationResult?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate, string[] ignored)
     {
         var carriedFunds = 0f;
         var portfolioValue = new List<PortfolioSnapshot>();
-        
+
         var mcapData = (await _mcapService.GetBetweenDates(startDate, endDate));
         mcapData = RemoveUneccesaryCoins(mcapData, numCoins);
+
         var coins = mcapData.Select(x => x.Coins.Take(numCoins)).SelectMany(x => x).Distinct().ToList();
         _prices = await GetPrices(coins, startDate, endDate);
 
         var periodCount = 0;
         TopMarketCap? period = mcapData.First();
         var currMcapPosition = 1;
+        var lastKnownPrices = new Dictionary<string, float>();
 
         var coinProfits = new Dictionary<string, CoinPriceHolder>();
         if (period == null) return null;
 
+        var uniqueCoins = new List<string>();
+
         while (period != null)
         {
             periodCount += 1;
-            
-            var extraFunds = SellDropped(period.Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, period.Date); // Sell any coins that have left the selected total num coins + 10% and reallocate
 
+            var extraFunds = SellDropped(period.Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, period.Date); // Sell any coins that have left the selected total num coins + 10% and reallocate
+            
             var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / numCoins;
             carriedFunds = 0f;
             var carryingFunds = 0f;
             var currentValue = 0f;
 
-            for (var i = 0; i < period.Coins.Count; i++)
+            var coinList = period.Coins.Where(x => !ignored.Contains(x.ToLower())).ToList();
+            for (var i = 0; i < coinList.Count; i++)
             {
                 try
                 {
-                    var coin = period.Coins[i];
+                    var coin = coinList[i];
                     var coinPrice = GetPriceOnDate(coin, period.Date);
-                    if (coinPrice == null || coinPrice == 0)
+                    if (coinPrice == null || coinPrice == 0 || (lastKnownPrices.ContainsKey(coin) && coinPrice < lastKnownPrices[coin] * 0.001))
                     {
                         if (i < numCoins) carryingFunds += totDcaAmnt;
                         continue;
                     }
 
-                    if (!_purchases.ContainsKey(coin)) _purchases.Add(coin, new List<float>());
+                    lastKnownPrices[coin] = (float)coinPrice;
+                    if (!_purchases.ContainsKey(coin)) {
+                        _purchases.Add(coin, new List<float>());
+                        if (!uniqueCoins.Contains(coin)) uniqueCoins.Add(coin);
+                    }
+                    
                     if (!coinProfits.ContainsKey(coin)) coinProfits.Add(coin, new CoinPriceHolder());
                     if (i < numCoins)
                     {
@@ -74,25 +84,28 @@ internal class TopCoinsETF
                 Value = currentValue,
                 Spent = periodCount * dcaAmnt
             };
+
             portfolioValue.Add(snapshot);
             carriedFunds += carryingFunds;
 
             period = interval switch
             {
                 DcaInterval.weekly => mcapData.Skip(currMcapPosition + 1).FirstOrDefault(),
-                DcaInterval.monthly => mcapData.Skip(currMcapPosition).FirstOrDefault(x => {
-                    if(period.Date.Month == 12) return x.Date.Month == 1;
+                DcaInterval.monthly => mcapData.Skip(currMcapPosition).FirstOrDefault(x =>
+                {
+                    if (period.Date.Month == 12) return x.Date.Month == 1;
                     else return x.Date.Month > period.Date.Month;
                 }),
                 _ => null
             };
 
-            if(period != null){
-                var newIndex = mcapData.FindIndex(x=>x.Date == period!.Date);
-                if(newIndex != -1) currMcapPosition = newIndex;
+            if (period != null)
+            {
+                var newIndex = mcapData.FindIndex(x => x.Date == period!.Date);
+                if (newIndex != -1) currMcapPosition = newIndex;
             }
         }
-
+        var x = uniqueCoins.Count;
         var res = new SimulationResult(portfolioValue, coinProfits.Select(x => new CoinProfit(x.Key, x.Value.Value - x.Value.Spent)).ToList());
 
         return res;
@@ -100,7 +113,7 @@ internal class TopCoinsETF
 
     private List<TopMarketCap> RemoveUneccesaryCoins(List<TopMarketCap> data, int top)
     {
-        foreach(var month in data) month.Coins = month.Coins.Take(top).ToList();
+        foreach (var month in data) month.Coins = month.Coins.Take(top).ToList();
         return data;
     }
 
@@ -108,7 +121,7 @@ internal class TopCoinsETF
     {
         if (!_prices.ContainsKey(coin)) return null;
         var dict = _prices[coin];
-        if (!dict.Any(x=>x.Date.Date == date.Date)) return null;
+        if (!dict.Any(x => x.Date.Date == date.Date)) return null;
         return dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price;
     }
 
@@ -118,7 +131,7 @@ internal class TopCoinsETF
         var closestDate = _prices[coin].OrderBy(t => Math.Abs((t.Date - date).Ticks)).FirstOrDefault();
         if (closestDate == null) return null;
         var nearest = _prices[coin].FirstOrDefault(x => x.Date.Date == closestDate.Date);
-        if(nearest == null) return 0f;
+        if (nearest == null) return 0f;
         return nearest!.Price;
     }
 
