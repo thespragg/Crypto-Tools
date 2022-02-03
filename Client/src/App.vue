@@ -39,7 +39,7 @@
         </div>
       </div>
     </div>
-    <ETF v-if="page == 1" />
+    <ETF :coins="coins" v-if="page == 1" />
     <GenericDCA :coins="coins" v-if="page == 2"/>
   </div>
 </template>

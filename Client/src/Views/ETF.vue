@@ -100,6 +100,31 @@
             class="w-1/5"
           />
         </n-input-group>
+        <div class="flex w-full mt-2 items-center">
+          <p class="mr-2">Ignored coins:</p>
+          <div
+            v-for="coin in ignoredCoins"
+            :key="coin"
+            class="mr-4 font-normal border border-solid border-slate-500 p-2 flex items-center"
+          >
+            <p class="mr-2">{{ coin }}</p>
+            <span class="w-px h-full mr-2">|</span>
+            <p class="text-red-600 cursor-pointer" @click="deleteCoin(coin)">x</p>
+          </div>
+          <n-input-group class="w-96">
+            <n-select
+              v-model:value="newIngoreCoin"
+              :options="coinOpts"
+              placeholder="Coin"
+              class="w-3/5"
+            >
+              <template #action>
+                <n-input v-model:value="search" placeholder="search" />
+              </template>
+            </n-select>
+            <n-button class="bg-white" @click="addIgnore">Add</n-button>
+          </n-input-group>
+        </div>
         <n-button type="info" class="bg-blue-600 ml-2 mt-4 w-48" @click="run">
           Run
         </n-button>
@@ -114,7 +139,7 @@
         <LineChart
           :chartData="chartData"
           class="w-11/12 h-96"
-          :options="chartOpts"
+          :options="Helpers.chartOpts"
         />
         <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
           <thead>
@@ -139,7 +164,7 @@
                 }}
               </td>
               <td
-                :style="{ color: getProfitColor(month.profit) }"
+                :style="{ color: Helpers.getProfitColor(month.profit) }"
                 class="font-bold"
               >
                 ${{
@@ -160,7 +185,7 @@
             <tr v-for="coin in coinProfits" :key="coin.name">
               <td>{{ coin.name }}</td>
               <td
-                :style="{ color: getProfitColor(coin.profit) }"
+                :style="{ color: Helpers.getProfitColor(coin.profit) }"
                 class="font-bold"
               >
                 ${{
@@ -179,7 +204,7 @@
 </template>
 
 <script setup>
-import { inject, ref } from "vue";
+import { inject, ref, computed } from "vue";
 import {
   NInput,
   NInputNumber,
@@ -194,9 +219,40 @@ import {
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
 import { LineChart } from "vue-chart-3";
+import Helpers from "../helpers"
 
 const http = inject("$http");
 
+const props = defineProps({
+  coins: {
+    required: true,
+    type: Array,
+  },
+});
+const search = ref("");
+const newIngoreCoin = ref("");
+const ignoredCoins = ref([]);
+const addIgnore = () => {
+  ignoredCoins.value.push(newIngoreCoin.value);
+  newIngoreCoin.value = "";
+};
+
+const coinOpts = computed(() =>
+  props.coins
+    .filter(
+      (x) => !search || x.toLowerCase().includes(search.value.toLowerCase())
+    )
+    .sort((a, b) => a.localeCompare(b))
+    .filter(Helpers.onlyUnique)
+    .map((x) => ({
+      label: Helpers.toCaps(x.replace(/-/g, " ")),
+      value: x,
+    }))
+);
+
+const deleteCoin = (coin) => {
+  ignoredCoins.value.splice(ignoredCoins.value.indexOf(coin), 1)
+}
 const etf = ref({
   amount: 100,
   coins: 100,
@@ -234,48 +290,6 @@ const portfolio = ref(null);
 const chartData = ref(null);
 const coinProfits = ref(null);
 
-const getColor = (val, spent) => {
-  if (val > spent) return "#31a843";
-  if (val < spent) return "#c93a5c";
-  return "#000";
-};
-
-const getProfitColor = (profit) => {
-  if (profit > 0) return "#31a843";
-  if (profit < 0) return "#c93a5c";
-  return "#000";
-};
-
-const chartOpts = {
-  responsive: true,
-  plugins: {
-    legend: {
-      display: false,
-    },
-    title: {
-      display: true,
-      text: "Portfolio value over time",
-    },
-  },
-  elements: {
-    line: {
-      tension: 0.5,
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-    },
-    y: {
-      grid: {
-        display: false,
-      },
-    },
-  },
-};
-
 const run = () => {
   running.value = true;
   portfolio.value = null;
@@ -309,6 +323,7 @@ const run = () => {
     .slice(0, 10)
     .replace(/-/g, "");
   var url = `etf?amnt=${etf.value.amount}&coins=${etf.value.coins}&interval=${etf.value.interval}&start=${start}&end=${end}`;
+  if(ignoredCoins.value != null && ignoredCoins.value.length > 0) url += `&ignored=${ignoredCoins.value.join(',')}`
   http.get(url).then((res) => {
     portfolio.value = res.data.snapshots.map((x) => ({
       ...x,
@@ -328,7 +343,7 @@ const run = () => {
           borderColor: "rgba(0,0,0,0.3)",
           borderWidth: 2,
           backgroundColor: portfolio.value.map((x) =>
-            getColor(x.value, x.spent)
+            Helpers.getColor(x.value, x.spent)
           ),
         },
       ],

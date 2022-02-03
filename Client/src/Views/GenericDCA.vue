@@ -30,7 +30,7 @@
         </div>
         <div class="w-full flex items-center">
           <p class="w-1/2">DCA Interval</p>
-          <n-select v-model:value="interval" :options="options" class="w-1/2" />
+          <n-select v-model:value="interval" :options="Helpers.dcaOptions" class="w-1/2" />
         </div>
         <div class="w-full flex items-center">
           <p class="w-1/2">Start Date</p>
@@ -79,7 +79,7 @@
             :max="5000"
             class="w-1/5"
           />
-          <n-select v-model:value="interval" :options="options" class="w-1/5" />
+          <n-select v-model:value="interval" :options="Helpers.dcaOptions" class="w-1/5" />
           <n-date-picker
             v-model:value="start"
             type="date"
@@ -151,7 +151,7 @@
         <LineChart
           :chartData="chartData"
           class="w-11/12 h-96"
-          :options="chartOpts"
+          :options="Helpers.chartOpts"
         />
         <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
           <thead>
@@ -176,7 +176,7 @@
                 }}
               </td>
               <td
-                :style="{ color: getProfitColor(month.profit) }"
+                :style="{ color: Helpers.getProfitColor(month.profit) }"
                 class="font-bold"
               >
                 ${{
@@ -197,7 +197,7 @@
             <tr v-for="coin in coinProfits" :key="coin.name">
               <td>{{ coin.name }}</td>
               <td
-                :style="{ color: getProfitColor(coin.profit) }"
+                :style="{ color: Helpers.getProfitColor(coin.profit) }"
                 class="font-bold"
               >
                 ${{
@@ -217,6 +217,8 @@
 
 <script setup>
 import { inject, ref, computed } from "vue";
+import Helpers from "../helpers"
+
 import {
   NInput,
   NInputNumber,
@@ -263,66 +265,17 @@ const coinOpts = computed(() =>
   props.coins
     .filter((x) => !search || x.toLowerCase().includes(search.value.toLowerCase()))
     .sort((a, b) => a.localeCompare(b))
+    .filter(Helpers.onlyUnique)
     .map((x) => ({
-      label: toCaps(x.replace(/-/g, " ")),
+      label: Helpers.toCaps(x.replace(/-/g, " ")),
       value: x,
     }))
 );
-
-const toCaps = (str) => {
-  const words = str.split(" ");
-
-  for (let i = 0; i < words.length; i++) {
-    words[i] = words[i][0].toUpperCase() + words[i].substr(1);
-  }
-
-  return words.join(" ");
-};
-
-const options = [
-  {
-    label: "Weekly",
-    value: "weekly",
-  },
-  {
-    label: "Monthly",
-    value: "monthly",
-  },
-];
 
 const portfolioProfits = ref(null);
 const chartData = ref(null);
 const coinProfits = ref(null);
 const running = ref(false);
-const chartOpts = {
-  responsive: true,
-  plugins: {
-    legend: {
-      display: false,
-    },
-    title: {
-      display: true,
-      text: "Portfolio value over time",
-    },
-  },
-  elements: {
-    line: {
-      tension: 0.5,
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-    },
-    y: {
-      grid: {
-        display: false,
-      },
-    },
-  },
-};
 
 const addNew = () => {
   portfolio.value.push({
@@ -339,18 +292,6 @@ const parseDate = (str) => {
   return D.getFullYear() == y && D.getMonth() == m && D.getDate() == d
     ? D
     : "invalid date";
-};
-
-const getColor = (val, spent) => {
-  if (val > spent) return "#31a843";
-  if (val < spent) return "#c93a5c";
-  return "#000";
-};
-
-const getProfitColor = (profit) => {
-  if (profit > 0) return "#31a843";
-  if (profit < 0) return "#c93a5c";
-  return "#000";
 };
 
 const run = () => {
@@ -404,7 +345,7 @@ const run = () => {
           borderColor: "rgba(0,0,0,0.3)",
           borderWidth: 2,
           backgroundColor: portfolioProfits.value.map((x) =>
-            getColor(x.value, x.spent)
+            Helpers.getColor(x.value, x.spent)
           ),
         },
       ],
