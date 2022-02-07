@@ -1,15 +1,7 @@
 <template>
   <div class="flex justify-center flex-col p-6">
     <div
-      class="
-        w-full
-        rounded
-        bg-gray-200
-        flex
-        justify-center
-        flex-col
-        items-center
-      "
+      class="w-full rounded bg-gray-200 flex justify-center flex-col items-center"
     >
       <p class="p-6 text-lg">
         This strategy simulates what dollar cost averaging into the top coins by
@@ -30,7 +22,11 @@
         </div>
         <div class="w-full flex items-center">
           <p class="w-1/2">DCA Interval</p>
-          <n-select v-model:value="interval" :options="Helpers.dcaOptions" class="w-1/2" />
+          <n-select
+            v-model:value="interval"
+            :options="Helpers.dcaOptions"
+            class="w-1/2"
+          />
         </div>
         <div class="w-full flex items-center">
           <p class="w-1/2">Start Date</p>
@@ -54,16 +50,7 @@
         </div>
       </div>
       <div
-        class="
-          p-6
-          font-bold
-          flex-col
-          w-full
-          items-center
-          justify-center
-          hidden
-          sm:flex
-        "
+        class="p-6 font-bold flex-col w-full items-center justify-center hidden sm:flex"
       >
         <div class="flex w-full mb-2 items-center justify-center">
           <p class="w-1/5">DCA Amount</p>
@@ -79,7 +66,11 @@
             :max="5000"
             class="w-1/5"
           />
-          <n-select v-model:value="interval" :options="Helpers.dcaOptions" class="w-1/5" />
+          <n-select
+            v-model:value="interval"
+            :options="Helpers.dcaOptions"
+            class="w-1/5"
+          />
           <n-date-picker
             v-model:value="start"
             type="date"
@@ -103,13 +94,7 @@
           <div
             v-for="coin in portfolio"
             :key="coin.name"
-            class="
-              flex
-              border border-solid border-slate-300
-              items-center
-              bg-white
-              w-96
-            "
+            class="flex border border-solid border-slate-300 items-center bg-white w-96"
           >
             <n-input-group class="justify-center w-full">
               <n-select
@@ -139,85 +124,17 @@
     </div>
     <div
       class="w-full rounded bg-gray-200 mt-6"
-      v-if="portfolioProfits || running"
+      v-if="result || running"
     >
-      <n-spin :size="100" class="p-12" v-if="running">
-        <template #description> Running Backtest </template>
-      </n-spin>
-      <div
-        v-if="portfolioProfits"
-        class="flex justify-center flex-col items-center"
-      >
-        <LineChart
-          :chartData="chartData"
-          class="w-11/12 h-96"
-          :options="Helpers.chartOpts"
-        />
-        <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Portfolio Value</th>
-              <th>Spent</th>
-              <th>Profit/Loss</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="month in portfolioProfits" :key="month.date">
-              <td>{{ new Date(month.date).toLocaleDateString("en-GB") }}</td>
-              <td>
-                {{
-                  month.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-              <td>
-                {{
-                  month.spent.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-              <td
-                :style="{ color: Helpers.getProfitColor(month.profit) }"
-                class="font-bold"
-              >
-                ${{
-                  month.profit.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </n-table>
-        <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
-          <thead>
-            <tr>
-              <th>Coin</th>
-              <th>Profit/Loss</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="coin in coinProfits" :key="coin.name">
-              <td>{{ coin.name }}</td>
-              <td
-                :style="{ color: Helpers.getProfitColor(coin.profit) }"
-                class="font-bold"
-              >
-                ${{
-                  coin.profit
-                    .toFixed(2)
-                    .toString()
-                    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </n-table>
-      </div>
+      <Result :result="result" :running="running" />
     </div>
   </div>
 </template>
 
 <script setup>
 import { inject, ref, computed } from "vue";
-import Helpers from "../helpers"
+import Helpers from "../helpers";
+import Result from "../components/Result.vue";
 
 import {
   NInput,
@@ -227,14 +144,9 @@ import {
   NButton,
   NTable,
   NInputGroup,
-  NSpin,
 } from "naive-ui";
 
-import { Chart, registerables } from "chart.js";
-Chart.register(...registerables);
-import { LineChart } from "vue-chart-3";
 const http = inject("$http");
-
 const portfolio = ref([]);
 const amount = ref(100);
 const interval = ref("monthly");
@@ -251,16 +163,6 @@ const props = defineProps({
   },
 });
 
-const totalPercent = computed(() =>
-  portfolio.value.reduce((a, b) => {
-    return a + b["allocation"];
-  }, 0)
-);
-
-const allocationColor = computed(() =>
-  totalPercent.value <= 100 ? "#31a843" : "#c93a5c"
-);
-
 const coinOpts = computed(() =>
   props.coins
     .filter((x) => !search || x.toLowerCase().includes(search.value.toLowerCase()))
@@ -272,17 +174,21 @@ const coinOpts = computed(() =>
     }))
 );
 
-const portfolioProfits = ref(null);
-const chartData = ref(null);
-const coinProfits = ref(null);
-const running = ref(false);
+const totalPercent = computed(() =>
+  portfolio.value.reduce((a, b) => {
+    return a + b["allocation"];
+  }, 0)
+);
 
-const addNew = () => {
+const allocationColor = computed(() =>
+  totalPercent.value <= 100 ? "#31a843" : "#c93a5c"
+);
+
+const addNew = () =>
   portfolio.value.push({
     coin: "",
-    allocation: 0
-  })
-}
+    allocation: 0,
+  });
 
 const parseDate = (str) => {
   var y = str.substr(0, 4),
@@ -294,9 +200,12 @@ const parseDate = (str) => {
     : "invalid date";
 };
 
+const running = ref(false)
+const result = ref({})
+
 const run = () => {
   running.value = true;
-  portfolioProfits.value = null;
+
   if (amount.value < 1) {
     err.value = "DCA amount must be greater than $1";
     running.value = false;
@@ -327,29 +236,8 @@ const run = () => {
     .replace(/-/g, "");
   var url = `dca?allocation=${coinStr}&amnt=${amount.value}&interval=${interval.value}&start=${startDate}&end=${endDate}`;
   http.get(url).then((res) => {
-    portfolioProfits.value = res.data.snapshots.map((x) => ({
-      ...x,
-      value: x.value.toFixed(2),
-      profit: x.profit.toFixed(2),
-    }));
+    result.value = res.data;
     running.value = false;
-    coinProfits.value = res.data.coins.sort((a, b) => b.profit - a.profit);
-
-    chartData.value = {
-      labels: portfolioProfits.value.map((x) =>
-        new Date(x.date).toLocaleDateString("en-GB")
-      ),
-      datasets: [
-        {
-          data: portfolioProfits.value.map((x) => x.value),
-          borderColor: "rgba(0,0,0,0.3)",
-          borderWidth: 2,
-          backgroundColor: portfolioProfits.value.map((x) =>
-            Helpers.getColor(x.value, x.spent)
-          ),
-        },
-      ],
-    };
   });
 };
 </script>

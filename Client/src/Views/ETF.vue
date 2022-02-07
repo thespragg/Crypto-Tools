@@ -114,7 +114,7 @@
           <n-input-group class="w-96">
             <n-select
               v-model:value="newIngoreCoin"
-              :options="coinOpts"
+              :options="coins"
               placeholder="Coin"
               class="w-3/5"
             >
@@ -131,74 +131,8 @@
       </div>
     </div>
 
-    <div class="w-full rounded bg-gray-200 mt-6" v-if="portfolio || running">
-      <n-spin :size="100" class="p-12" v-if="running">
-        <template #description> Running Backtest </template>
-      </n-spin>
-      <div v-if="portfolio" class="flex justify-center flex-col items-center">
-        <LineChart
-          :chartData="chartData"
-          class="w-11/12 h-96"
-          :options="Helpers.chartOpts"
-        />
-        <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Portfolio Value</th>
-              <th>Spent</th>
-              <th>Profit/Loss</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="month in portfolio" :key="month.date">
-              <td>{{ new Date(month.date).toLocaleDateString("en-GB") }}</td>
-              <td>
-                {{
-                  month.value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-              <td>
-                {{
-                  month.spent.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-              <td
-                :style="{ color: Helpers.getProfitColor(month.profit) }"
-                class="font-bold"
-              >
-                ${{
-                  month.profit.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </n-table>
-        <n-table :bordered="false" :single-line="false" class="w-5/6 my-6">
-          <thead>
-            <tr>
-              <th>Coin</th>
-              <th>Profit/Loss</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="coin in coinProfits" :key="coin.name">
-              <td>{{ coin.name }}</td>
-              <td
-                :style="{ color: Helpers.getProfitColor(coin.profit) }"
-                class="font-bold"
-              >
-                ${{
-                  coin.profit
-                    .toFixed(2)
-                    .toString()
-                    .replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                }}
-              </td>
-            </tr>
-          </tbody>
-        </n-table>
-      </div>
+    <div class="w-full rounded bg-gray-200 mt-6" v-if="result || running">
+      <Result :result="result" :running="running"/>
     </div>
   </div>
 </template>
@@ -211,15 +145,14 @@ import {
   NSelect,
   NDatePicker,
   NButton,
-  NTable,
   NInputGroup,
-  NSpin,
 } from "naive-ui";
 
 import { Chart, registerables } from "chart.js";
 Chart.register(...registerables);
 import { LineChart } from "vue-chart-3";
 import Helpers from "../helpers"
+import Result from "../components/Result.vue"
 
 const http = inject("$http");
 
@@ -229,13 +162,6 @@ const props = defineProps({
     type: Array,
   },
 });
-const search = ref("");
-const newIngoreCoin = ref("");
-const ignoredCoins = ref([]);
-const addIgnore = () => {
-  ignoredCoins.value.push(newIngoreCoin.value);
-  newIngoreCoin.value = "";
-};
 
 const coinOpts = computed(() =>
   props.coins
@@ -250,6 +176,14 @@ const coinOpts = computed(() =>
     }))
 );
 
+const search = ref("");
+const newIngoreCoin = ref("");
+const ignoredCoins = ref([]);
+const addIgnore = () => {
+  ignoredCoins.value.push(newIngoreCoin.value);
+  newIngoreCoin.value = "";
+};
+
 const deleteCoin = (coin) => {
   ignoredCoins.value.splice(ignoredCoins.value.indexOf(coin), 1)
 }
@@ -261,7 +195,6 @@ const etf = ref({
   end: Date.now(),
 });
 
-const running = ref(false);
 const err = ref(null);
 const dateDisabled = (ts) => ts < new Date("2013-01-01");
 
@@ -286,13 +219,12 @@ const options = [
   },
 ];
 
-const portfolio = ref(null);
-const chartData = ref(null);
-const coinProfits = ref(null);
+const running = ref(false)
+const result = ref({})
 
 const run = () => {
   running.value = true;
-  portfolio.value = null;
+  result.value = null;
   if (etf.value.amount < 1) {
     err.value = "DCA amount must be greater than $1";
     running.value = false;
@@ -325,29 +257,8 @@ const run = () => {
   var url = `etf?amnt=${etf.value.amount}&coins=${etf.value.coins}&interval=${etf.value.interval}&start=${start}&end=${end}`;
   if(ignoredCoins.value != null && ignoredCoins.value.length > 0) url += `&ignored=${ignoredCoins.value.join(',')}`
   http.get(url).then((res) => {
-    portfolio.value = res.data.snapshots.map((x) => ({
-      ...x,
-      value: x.value.toFixed(2),
-      profit: x.profit.toFixed(2),
-    }));
-    running.value = false;
-    coinProfits.value = res.data.coins.sort((a, b) => b.profit - a.profit);
-
-    chartData.value = {
-      labels: portfolio.value.map((x) =>
-        new Date(x.date).toLocaleDateString("en-GB")
-      ),
-      datasets: [
-        {
-          data: portfolio.value.map((x) => x.value),
-          borderColor: "rgba(0,0,0,0.3)",
-          borderWidth: 2,
-          backgroundColor: portfolio.value.map((x) =>
-            Helpers.getColor(x.value, x.spent)
-          ),
-        },
-      ],
-    };
+    result.value = res.data
+    running.value = false
   });
 };
 </script>

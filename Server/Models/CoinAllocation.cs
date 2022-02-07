@@ -3,6 +3,6 @@
     public class CoinAllocation
     {
         public string Name { get; set; } = string.Empty;
-        public int Allocation { get; set; }
+        public float Allocation { get; set; }
     }
 }
