@@ -79,7 +79,7 @@ public class GenericDCA
         if (!_prices.ContainsKey(coin)) return null;
         var dict = _prices[coin];
         if (!dict.Any(x => x.Date.Date == date.Date)) return null;
-        return (float) dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price!.Price!.Price;
+        return (float) dict.FirstOrDefault(x => x.Date.Date == date.Date)!.PriceHolder!.Price!.Price;
     }
 
     private async Task<Dictionary<string, List<TimestampedPrice>>> GetPrices(IList<string> coins, DateTime start, DateTime end)

@@ -1,4 +1,5 @@
 ﻿using Crypto_Tools.DAL;
+using Crypto_Tools.PortfolioStrategies;
 using Crypto_Tools.Services;
 using Microsoft.Extensions.Options;
 
@@ -11,7 +12,8 @@ public class Startup
     public void ConfigureServices(IServiceCollection services)
     {
         services.Configure<CryptoToolsDatabaseSettings>(Configuration.GetSection(nameof(CryptoToolsDatabaseSettings)));
-
+        services.AddLogging();
+        
         services.AddSingleton<ICryptoToolsDatabaseSettings>(sp =>
             sp.GetRequiredService<IOptions<CryptoToolsDatabaseSettings>>().Value);
 
@@ -26,6 +28,8 @@ public class Startup
 
         services.AddSingleton<IMarketCapService, MarketCapService>();
         services.AddSingleton<ICoinPriceService, CoinPriceService>();
+        
+        services.AddTransient<TopCoinsETF>();
 
         services.AddHostedService<CoinPriceTimerService>();
         services.AddHostedService<MarketCapCollectionService>();

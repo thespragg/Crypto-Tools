@@ -65,6 +65,16 @@ public class TimestampedPrice
     [JsonPropertyName("self_reported_market_cap")]
     public double? SelfReportedMarketCap { get; set; }
     [JsonPropertyName("Quote")]
-    public Quote? Price { get; set; }
+    public Quote? PriceHolder { get; set; }
+    public float Price
+    {
+        get
+        {
+            if (PriceHolder == null) return 0f;
+            if (PriceHolder.Price == null) return 0f;
+            if (PriceHolder.Price.Price == null) return 0f;
+            return (float)PriceHolder.Price.Price;
+        }
+    }
 }
 

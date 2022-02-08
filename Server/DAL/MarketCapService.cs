@@ -10,6 +10,7 @@ public interface IMarketCapService
     Task<TopMarketCap> Get(string id);
     Task<TopMarketCap> FindByDate(DateTime date);
     Task<List<TopMarketCap>> GetBetweenDates(DateTime start, DateTime end);
+    Task<List<TopMarketCap>> GetWithCappedCoinsBetweenDates(DateTime start, DateTime end, int numCoins);
     Task<DeleteResult> Remove(string id);
     Task<ReplaceOneResult> Update(TopMarketCap mcapIn);
 }
@@ -33,6 +34,8 @@ public class MarketCapService : IMarketCapService
 
     public async Task<List<TopMarketCap>> GetBetweenDates(DateTime start, DateTime end) =>
        (await _topMarketCaps.FindAsync(mcap => mcap.Date >= start && mcap.Date <= end)).ToList();
+
+    public async Task<List<TopMarketCap>> GetWithCappedCoinsBetweenDates(DateTime start, DateTime end, int numCoins) => (await GetBetweenDates(start,end)).Select(x=>new TopMarketCap(x,numCoins)).ToList();
 
     public async Task<TopMarketCap> FindByDate(DateTime date) =>
        (await _topMarketCaps.FindAsync(mcap => mcap.Date == date)).FirstOrDefault();

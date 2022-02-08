@@ -14,5 +14,7 @@ public class TopMarketCap
 
     [BsonElement("coins")]
     public List<string> Coins { get; set; } = new List<string>();
+    public TopMarketCap() {}
+    public TopMarketCap(TopMarketCap capIn, int numCoins) => (Id,Date,Coins) = (capIn.Id, capIn.Date, capIn.Coins.Take(numCoins).ToList());
 }
 
