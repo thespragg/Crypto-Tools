@@ -1,137 +1,105 @@
 ﻿using Crypto_Tools.DAL;
 using Crypto_Tools.DAL.Models;
-using HtmlAgilityPack;
-using OpenQA.Selenium;
-using OpenQA.Selenium.Chrome;
+using Crypto_Tools.Services;
 using System.Globalization;
-using System.Reflection;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace Crypto_Tools.Helpers;
 public class CMCMarketCapGatherer
 {
     private readonly string _startDate = "20130428";
     private readonly IMarketCapService _mcapService;
-    public CMCMarketCapGatherer(IMarketCapService mcapService) => _mcapService = mcapService;
-    internal async Task GetHistoricTopCoins(int qty = 500)
+    private readonly ICoinPriceService _priceService;
+    private readonly ILogger<MarketCapCollectionService> _logger;
+    private readonly HttpClient _httpClient;
+    public CMCMarketCapGatherer(IMarketCapService mcapService, ICoinPriceService priceService, ILogger<MarketCapCollectionService> logger)
     {
-        try
+        (_mcapService, _priceService, _logger) = (mcapService, priceService, logger);
+        HttpClientHandler handler = new()
+        {
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+        };
+
+        _httpClient = new(handler)
+        {
+            BaseAddress = new Uri("https://web-api.coinmarketcap.com/v1/cryptocurrency/listings/")
+        };
+        _httpClient.DefaultRequestHeaders.Add("accept", "application/json, text/plain, */*");
+        _httpClient.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate, br");
+        _httpClient.DefaultRequestHeaders.Add("accept-language", "en-GB,en-US;q=0.9,en;q=0.8");
+        _httpClient.DefaultRequestHeaders.Add("origin", "https://coinmarketcap.com");
+        _httpClient.DefaultRequestHeaders.Add("referer", "https://coinmarketcap.com/");
+        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua", "' Not A;Brand'; v = '99', 'Chromium'; v = '98', 'Google Chrome'; v = '98'");
+        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-mobile", "?0");
+        _httpClient.DefaultRequestHeaders.Add("sec-ch-ua-platform", "'Windows'");
+        _httpClient.DefaultRequestHeaders.Add("sec-fetch-dest", "empty");
+        _httpClient.DefaultRequestHeaders.Add("sec-fetch-mode", "cors");
+        _httpClient.DefaultRequestHeaders.Add("sec-fetch-site", "same-site");
+        _httpClient.DefaultRequestHeaders.Add("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.81 Safari/537.36");
+    }
+
+    internal void GetHistoricTopCoins(int qty = 500)
+    {
+        new Thread(async () =>
         {
             var date = DateTime.ParseExact(_startDate, "yyyyMMdd", CultureInfo.InvariantCulture);
 
             while (date < DateTime.Today)
             {
-                var top = new TopMarketCap
-                {
-                    Date = date
-                };
-
                 try
                 {
-                    if (await _mcapService.FindByDate(date) != null)
+                    var top = new TopMarketCap
                     {
-                        date = date.AddDays(7);
-                        continue; // Date already exists
-                    }
-
-                    var src = GetPageSource($"https://coinmarketcap.com/historical/{date:yyyyMMdd}");
-                    if (src == null)
+                        Date = date
+                    };
+                    var existing = await _mcapService.FindByDate(date);
+                    if (existing != null)
                     {
-                        date = date.AddDays(7);
+                        date = date.AddDays(1);
                         continue;
                     }
-                    date = date.AddDays(7);
 
-                    var doc = new HtmlDocument();
-                    doc.LoadHtml(src);
-
-                    HtmlNode? table = null;
-                    table = doc.DocumentNode.SelectNodes("//table").Last();
-
-                    var rows = table.SelectNodes("//tbody//tr").Take(qty);
-                    var res = new List<string>();
-                    foreach (var row in rows)
-                    {
-                        var name = "";
-                        try
-                        {
-                            name = row.ChildNodes[1].FirstChild.LastChild.InnerText;
-                        }
-                        catch
-                        {
-                            name = row.ChildNodes[1].InnerText;
-                        }
-
-                        var symbol = "";
-                        try
-                        {
-                            symbol = row.ChildNodes[2].FirstChild.InnerText;
-                        }
-                        catch { }
-
-                        var id = await CoinGeckoStaticHelpers.ConvertToCoinGeckoId(name, symbol);
-                        if (id == null) continue;
-                        res.Add(id);
-                    }
-                    top.Coins = res.Where(x => !string.IsNullOrEmpty(x)).ToList();
+                    var test = await _httpClient.GetAsync($"historical?convert=USD,USD,BTC&date={date:yyyy-MM-dd}&limit=500&start=1");
+                    var buffer = await test.Content.ReadAsByteArrayAsync();
+                    var byteArray = buffer.ToArray();
+                    var responseString = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length);
+                    var res = JsonSerializer.Deserialize<CMCMarketCapData>(responseString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    top.Coins = res!.Data!.Select(x => x.Name!).ToList();
                     await _mcapService.Create(top);
+
+                    foreach(var coin in res.Data!)
+                    {
+                        var storedCoin = await _priceService.Find(coin.Name!);
+                        if (storedCoin == null)
+                        {
+                            storedCoin = await _priceService.Create(new CoinPrice
+                            {
+                                Name = coin.Name!,
+                                Symbol = coin.Symbol!,
+                                Prices = new List<TimestampedPrice>()
+                            });
+                        }
+                        coin.Date = date;
+                        storedCoin!.Prices.Add(coin);
+                        await _priceService.Update(storedCoin);
+                    }
+
+                    Thread.Sleep(1000);
+                    date = date.AddDays(1);
                 }
                 catch
                 {
 
                 }
             }
-        }
-        catch
-        {
 
-        }
+        }).Start();
     }
 
-    private static string? GetPageSource(string url)
+    class CMCMarketCapData
     {
-        ChromeOptions options = new();
-        var chromeDriverService = ChromeDriverService.CreateDefaultService(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
-        chromeDriverService.HideCommandPromptWindow = true;
-        chromeDriverService.SuppressInitialDiagnosticInformation = true;
-        options.AddArgument("--silent");
-        options.AddArgument("log-level=3");
-        try
-        {
-            var driver = new ChromeDriver(chromeDriverService, options)
-            {
-                Url = url
-            };
-            driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(1);
-            IJavaScriptExecutor js = driver;
-            js.ExecuteScript("window.scrollTo(0, document.body.scrollHeight)");
-
-            //Click the load more button twice to get top 500
-            try
-            {
-                var loadMore = driver.FindElement(By.XPath("//div[@class='cmc-table-listing__loadmore']"));
-                var btn = loadMore.FindElement(By.CssSelector("button:nth-child(1)"));
-                btn.Click();
-                Thread.Sleep(500);
-                js.ExecuteScript("window.scrollTo(0, document.body.scrollHeight)");
-                Thread.Sleep(1000);
-                loadMore = driver.FindElement(By.XPath("//div[@class='cmc-table-listing__loadmore']"));
-                btn = loadMore.FindElement(By.CssSelector("button:nth-child(1)"));
-                btn.Click();
-                Thread.Sleep(500);
-                js.ExecuteScript("window.scrollTo(0, document.body.scrollHeight)");
-                Thread.Sleep(1000);
-            }
-            catch
-            {
-            }
-
-            var src = driver.PageSource;
-            driver.Quit();
-            return src;
-        }
-        catch
-        {
-            return null;
-        }
+        public List<TimestampedPrice>? Data { get; set; }
     }
 }

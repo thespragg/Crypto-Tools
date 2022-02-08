@@ -60,7 +60,7 @@ public class OneTimeBuyTheTop
         if (!_prices.ContainsKey(coin)) return null;
         var dict = _prices[coin];
         if (!dict.Any(x => x.Date.Date == date.Date)) return null;
-        return dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price;
+        return (float)dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price!.Price!.Price;
     }
 
     private List<TopMarketCap> RemoveUneccesaryCoins(List<TopMarketCap> data, int top)

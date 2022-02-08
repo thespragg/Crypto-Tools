@@ -14,9 +14,6 @@ internal class TopCoinsETF
 
     internal async Task<SimulationResult?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate, string[] ignored)
     {
-        var carriedFunds = 0f;
-        var portfolioValue = new List<PortfolioSnapshot>();
-
         var mcapData = (await _mcapService.GetBetweenDates(startDate, endDate));
         mcapData = RemoveUneccesaryCoins(mcapData, numCoins);
 
@@ -24,22 +21,23 @@ internal class TopCoinsETF
         _prices = await GetPrices(coins, startDate, endDate);
 
         var periodCount = 0;
-        TopMarketCap? period = mcapData.First();
-        var currMcapPosition = 1;
         var lastKnownPrices = new Dictionary<string, float>();
-
         var coinProfits = new Dictionary<string, CoinPriceHolder>();
+        var carriedFunds = 0f;
+        var portfolioValue = new List<PortfolioSnapshot>();
+
+        TopMarketCap? period = mcapData.First();
         if (period == null) return null;
-
-        var uniqueCoins = new List<string>();
-
+        var currMcapPosition = 1;
         while (period != null)
         {
             periodCount += 1;
 
             var extraFunds = SellDropped(period.Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, period.Date); // Sell any coins that have left the selected total num coins + 10% and reallocate
-            
             var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / numCoins;
+
+
+
             carriedFunds = 0f;
             var carryingFunds = 0f;
             var currentValue = 0f;
@@ -60,7 +58,6 @@ internal class TopCoinsETF
                     lastKnownPrices[coin] = (float)coinPrice;
                     if (!_purchases.ContainsKey(coin)) {
                         _purchases.Add(coin, new List<float>());
-                        if (!uniqueCoins.Contains(coin)) uniqueCoins.Add(coin);
                     }
                     
                     if (!coinProfits.ContainsKey(coin)) coinProfits.Add(coin, new CoinPriceHolder());
@@ -78,6 +75,7 @@ internal class TopCoinsETF
 
                 }
             }
+
             var snapshot = new PortfolioSnapshot
             {
                 Date = period.Date,
@@ -105,7 +103,6 @@ internal class TopCoinsETF
                 if (newIndex != -1) currMcapPosition = newIndex;
             }
         }
-        var x = uniqueCoins.Count;
         var res = new SimulationResult(portfolioValue, coinProfits.Select(x => new CoinProfit(x.Key, x.Value.Value - x.Value.Spent)).ToList());
 
         return res;
@@ -122,7 +119,7 @@ internal class TopCoinsETF
         if (!_prices.ContainsKey(coin)) return null;
         var dict = _prices[coin];
         if (!dict.Any(x => x.Date.Date == date.Date)) return null;
-        return dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price;
+        return (float)dict.FirstOrDefault(x => x.Date.Date == date.Date)!.Price!.Price!.Price;
     }
 
     private float? GetNearestDatePrice(string coin, DateTime date)
@@ -132,7 +129,7 @@ internal class TopCoinsETF
         if (closestDate == null) return null;
         var nearest = _prices[coin].FirstOrDefault(x => x.Date.Date == closestDate.Date);
         if (nearest == null) return 0f;
-        return nearest!.Price;
+        return (float)nearest!.Price!.Price!.Price;
     }
 
     private async Task<Dictionary<string, List<TimestampedPrice>>> GetPrices(IList<string> coins, DateTime start, DateTime end)

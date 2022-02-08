@@ -27,30 +27,30 @@ public class CoinGeckoStaticHelpers
         return symbol;
     }
 
-    public static async Task<CoinPrice?> GetPrice(string coin)
-    {
-        try
-        {
-            var priceData = (await _client.CoinsClient.GetMarketChartsByCoinId(coin, "usd", "max"));
-            var prices = priceData.Prices.GroupBy(p => UnixTimeStampToDateTime((long)p[0]!)).Select(x =>
-            {
-                var date = x.Key;
-                var val = x.First()[1] != null ? (float)x.First()[1]! : 0f;
-                return new TimestampedPrice { Date = date, Price = val };
-            });
-            return new CoinPrice
-            {
-                Name = coin,
-                Prices = prices.ToList(),
-                LastChecked = DateTime.Now
-            };
-        }
-        catch 
-        {
-            return null;
-        }
+    //public static async Task<CoinPrice?> GetPrice(string coin)
+    //{
+    //    try
+    //    {
+    //        var priceData = (await _client.CoinsClient.GetMarketChartsByCoinId(coin, "usd", "max"));
+    //        var prices = priceData.Prices.GroupBy(p => UnixTimeStampToDateTime((long)p[0]!)).Select(x =>
+    //        {
+    //            var date = x.Key;
+    //            var val = x.First()[1] != null ? (float)x.First()[1]! : 0f;
+    //            return new TimestampedPrice { Date = date, Price = val };
+    //        });
+    //        return new CoinPrice
+    //        {
+    //            Name = coin,
+    //            Prices = prices.ToList(),
+    //            LastChecked = DateTime.Now
+    //        };
+    //    }
+    //    catch 
+    //    {
+    //        return null;
+    //    }
 
-    }
+    //}
 
     private static DateTime UnixTimeStampToDateTime(long unixTimeStamp)
     {

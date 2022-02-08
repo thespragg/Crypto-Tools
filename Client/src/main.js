@@ -4,6 +4,6 @@ import './index.css'
 import axios from 'axios'
 
 const http = axios.create({
-    baseURL: "https://localhost:7166/api/"
+    baseURL: "http://localhost:5100/api/"
 })
 createApp(App).provide('$http', http).mount('#app')
