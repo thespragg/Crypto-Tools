@@ -66,7 +66,8 @@ public class CMCMarketCapGatherer
                     var byteArray = buffer.ToArray();
                     var responseString = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length);
                     var res = JsonSerializer.Deserialize<CMCMarketCapData>(responseString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    top.Coins = res!.Data!.Select(x => x.Name!).ToList();
+                    if (res.Data == null) continue;
+                    top.Coins = res!.Data!.Where(x=>string.IsNullOrEmpty(x.Name)).Select(x => x.Name!).ToList();
                     await _mcapService.Create(top);
 
                     foreach(var coin in res.Data!)
@@ -86,7 +87,7 @@ public class CMCMarketCapGatherer
                         await _priceService.Update(storedCoin);
                     }
 
-                    Thread.Sleep(1000);
+                    Thread.Sleep(2000);
                     date = date.AddDays(1);
                 }
                 catch
