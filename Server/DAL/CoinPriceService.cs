@@ -44,7 +44,7 @@ public class CoinPriceService : ICoinPriceService
             if (storedCoin == null) continue;
             var storedPrices = storedCoin!.Prices.Where(x => x.Date >= start && x.Date <= end).ToList();
             if (storedPrices.Count == 0) continue;
-            prices.Add(coin, storedPrices.ToDictionary(x=>x.Date,x=>x));
+            prices.Add(coin, storedPrices.GroupBy(x=>x.Date).ToDictionary(x=>x.Key,x=>x.First()));
         }
         return prices;
     }

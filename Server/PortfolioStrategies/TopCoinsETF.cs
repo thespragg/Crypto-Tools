@@ -21,7 +21,6 @@ public class TopCoinsETF
 
     internal async Task<SimulationResult?> Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate, string[] ignored)
     {
-        _timer.Start();
         var mcapData = await _mcapService.GetWithCappedCoinsBetweenDates(startDate, endDate, numCoins);
         _prices = await _priceService.GetPriceDictionary(mcapData.SelectMany(x => x.Coins), startDate, endDate);
         var dates = GetDateRange(startDate, endDate, mcapData, interval).ToList();
@@ -33,9 +32,16 @@ public class TopCoinsETF
             var carryingFunds = 0f;
             var currentValue = 0f;
             var extraFunds = SellDropped(dates[i].Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, dates[i].Date);
-            var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / numCoins;
             var coinList = dates[i].Coins.Where(x => !ignored.Contains(x.ToLower()));
 
+
+            var min = Math.Min(numCoins, coinList.Count());
+            var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / min;
+
+            if(coinList.Count() == 0)
+            {
+
+            }
             foreach (var coin in coinList)
             {
                 var coinPrice = GetPriceOnDate(coin, dates[i].Date);
@@ -53,20 +59,22 @@ public class TopCoinsETF
                 _purchases[coin].Add(totDcaAmnt / (float)coinPrice);
                 _profits[coin].Value = (float)coinPrice * _purchases[coin].Sum();
                 currentValue += (float)coinPrice * _purchases[coin].Sum();
+                if(currentValue == 0)
+                {
+
+                }
             }
 
             var snapshot = new PortfolioSnapshot
             {
                 Date = dates[i].Date,
                 Value = currentValue,
-                Spent = i * dcaAmnt
+                Spent = ((i + 1) * dcaAmnt) - carryingFunds
             };
 
             _portfolioValue.Add(snapshot);
             carriedFunds += carryingFunds;
         }
-        _timer.Stop();
-        _logger.LogInformation($"Took {_timer.ElapsedMilliseconds}ms to process dates");
         return new SimulationResult(_portfolioValue, _profits.Select(x => new CoinProfit(x.Key, x.Value.Value - x.Value.Spent)).ToList());
     }
 
@@ -75,7 +83,7 @@ public class TopCoinsETF
         if (endDate.Date < startDate.Date)
             throw new ArgumentException("endDate must be greater than or equal to startDate");
 
-        var dataDict = data.GroupBy(x=>x.Date).ToDictionary(x => x.Key, x => x.First());
+        var dataDict = data.GroupBy(x => x.Date).ToDictionary(x => x.Key, x => x.First());
         while (startDate.Date <= endDate.Date)
         {
             if (!dataDict.ContainsKey(startDate.Date))
@@ -102,7 +110,7 @@ public class TopCoinsETF
     {
         if (!_prices.ContainsKey(coin)) return null;
         var dict = _prices[coin];
-        if(!dict.ContainsKey(date.Date)) return null;
+        if (!dict.ContainsKey(date.Date)) return null;
         return dict[date.Date].Price;
     }
 
