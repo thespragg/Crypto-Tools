@@ -117,10 +117,10 @@
           </div>
           <p @click="addNew" class="cursor-pointer mt-2">+Add coin</p>
         </div>
-        <n-button type="info" class="bg-blue-600 ml-2 mt-4 w-48" @click="run">
+      </div>
+      <n-button type="info" class="bg-blue-600 ml-2 mt-4 w-48" @click="run">
           Run
         </n-button>
-      </div>
     </div>
     <div
       class="w-full rounded bg-gray-200 mt-6"

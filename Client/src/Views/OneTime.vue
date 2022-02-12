@@ -89,10 +89,10 @@
             class="w-1/5"
           />
         </n-input-group>
-        <n-button type="info" class="bg-blue-600 ml-2 mt-4 w-48" @click="run">
+      </div>
+      <n-button type="info" class="bg-blue-600 ml-2 mt-4 w-48" @click="run">
           Run
         </n-button>
-      </div>
     </div>
 
     <div class="w-full rounded bg-gray-200 mt-6" v-if="result || running">
@@ -156,6 +156,7 @@ const run = ()=> {
     .replace(/-/g, "");
   var url = `onetimetop?amnt=${amount.value}&numCoins=${topNum.value}&start=${startDate}&end=${endDate}`;
   http.get(url).then(res=>{
+    console.log(res)
     running.value = false;
     result.value = res.data
   })
