@@ -13,13 +13,49 @@ public class CMCMarketCapGatherer
     private readonly IMarketCapService _mcapService;
     private readonly ICoinPriceService _priceService;
     private readonly ILogger<MarketCapCollectionService> _logger;
-    private readonly HttpClient _httpClient;
+    private HttpClient _httpClient;
+
+    private readonly List<string> Proxies = new List<string>
+    {
+        "45.140.13.119:9132",
+        "45.142.28.83:8094",
+        "45.136.231.85:7141",
+        "45.136.231.43:7099",
+        "45.142.28.20:8031",
+        "45.140.13.112:9125",
+        "45.142.28.187:8198",
+        "45.140.13.124:9137",
+        "45.142.28.145:8156",
+        "45.137.60.112:6640"
+    };
+
+    private readonly List<string> UsedProxies = new List<string>();
+
     public CMCMarketCapGatherer(IMarketCapService mcapService, ICoinPriceService priceService, ILogger<MarketCapCollectionService> logger)
     {
         (_mcapService, _priceService, _logger) = (mcapService, priceService, logger);
+        GenerateNewClient();
+    }
+
+    private void GenerateNewClient()
+    {
+        if (Proxies.Count == 0)
+        {
+            Proxies.AddRange(UsedProxies);
+            UsedProxies.Clear();
+        }
+        var proxy = Proxies.First();
+        Proxies.Remove(proxy);
+        UsedProxies.Add(proxy);
+
         HttpClientHandler handler = new()
         {
-            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+            UseProxy = true,
+            Proxy = new WebProxy(proxy),
+            UseDefaultCredentials = false,
+            Credentials = new NetworkCredential("owckvfpv", "qckoq5ozdjti"),
+            DefaultProxyCredentials = new NetworkCredential("owckvfpv", "qckoq5ozdjti")
         };
 
         _httpClient = new(handler)
@@ -46,6 +82,7 @@ public class CMCMarketCapGatherer
         {
             var date = DateTime.ParseExact(_startDate, "yyyyMMdd", CultureInfo.InvariantCulture);
 
+        retry:
             while (date < DateTime.Today)
             {
                 try
@@ -61,16 +98,20 @@ public class CMCMarketCapGatherer
                         continue;
                     }
 
-                    var test = await _httpClient.GetAsync($"historical?convert=USD,USD,BTC&date={date:yyyy-MM-dd}&limit=500&start=1");
+                    var test = await _httpClient.GetAsync($"historical?convert=USD&date={date:yyyy-MM-dd}&limit=500&start=1");
                     var buffer = await test.Content.ReadAsByteArrayAsync();
                     var byteArray = buffer.ToArray();
                     var responseString = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length);
                     var res = JsonSerializer.Deserialize<CMCMarketCapData>(responseString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (res.Data == null) continue;
-                    top.Coins = res!.Data!.Where(x=>string.IsNullOrEmpty(x.Name)).Select(x => x.Name!).ToList();
+                    if (res?.Data == null)
+                    {
+                        GenerateNewClient();
+                        goto retry;
+                    }
+                    top.Coins = res!.Data!.Where(x => string.IsNullOrEmpty(x.Name)).Select(x => x.Name!).ToList();
                     await _mcapService.Create(top);
 
-                    foreach(var coin in res.Data!)
+                    foreach (var coin in res.Data!)
                     {
                         var storedCoin = await _priceService.Find(coin.Name!);
                         if (storedCoin == null)
