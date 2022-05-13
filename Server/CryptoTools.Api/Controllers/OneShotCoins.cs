@@ -7,11 +7,12 @@ namespace CryptoTools.Api.Controllers
     [ApiController]
     public class OneShotCoins : ControllerBase
     {
+        private readonly CryptoToolsDbContext _db;
+        public OneShotCoins(CryptoToolsDbContext db) => (_db) = (db);
         [HttpGet]
         public IActionResult Get()
         {
-            var db = new CryptoToolsDbContext();
-            var topMcaps = db.MarketCapRankings.ToList();
+            var topMcaps = _db.MarketCapRankings.ToList();
             if (topMcaps == null) return NotFound();
             var singlecoins = topMcaps.SelectMany(x => x.Coins).GroupBy(x => x).Where(x => x.Count() == 1).SelectMany(x => x).Where(x=>x!= "sushi").ToList();
             LowestCoin? lowestCoin = null;

@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using CryptoTools.Core.DAL;
 using CryptoTools.Core.DAL.Models;
+using CryptoTools.Core.Enums;
 using CryptoTools.Core.Models;
 
 namespace CryptoTools.Core.PortfolioStrategies;
@@ -10,17 +11,16 @@ public class TopCoinsETF
     private readonly Dictionary<string, List<float>> _purchases = new();
     private Dictionary<string, Dictionary<DateTime, CoinPrice>> _prices = new();
     private readonly Dictionary<string, float> _lastKnownPrices = new();
-    private readonly Dictionary<string, CoinPriceHolder> _profits = new();
+    private readonly Dictionary<string, CoinPurchase> _profits = new();
     private readonly List<PortfolioSnapshot> _portfolioValue = new();
-    private Stopwatch _timer = new Stopwatch();
-
-    internal SimulationResult? Run(int dcaAmnt, int numCoins, DcaInterval interval, DateTime startDate, DateTime endDate, string[] ignored)
+    private readonly CryptoToolsDbContext _db;
+    public TopCoinsETF(CryptoToolsDbContext db) => _db = db;
+    public SimulationResult? Run(StrategyOptions opts)
     {
-        var db = new CryptoToolsDbContext();
-        var mcapData = db.MarketCapRankings.Where(x => x.Date >= startDate && x.Date <= endDate).ToList().Select(x => { x.Coins = x.Coins.Take(numCoins).ToList(); return x; });
+        var mcapData = _db.MarketCapRankings.Where(x => x.Date >= opts.StartDate && x.Date <= opts.EndDate).ToList().Select(x => { x.Coins = x.Coins.Take((int)opts.MarketCapRankingMax!).ToList(); return x; });
         var coins = mcapData.SelectMany(x => x.Coins);
-        _prices = db.CoinPrices.Where(x => coins.Contains(x.CoinSymbol) && x.Date >= startDate && x.Date <= endDate).ToList().GroupBy(x => x.CoinSymbol).ToDictionary(x => x.Key, x => x.ToDictionary(z => z.Date, z => z));
-        var dates = GetDateRange(startDate, endDate, mcapData, interval).ToList();
+        _prices = _db.CoinPrices.Where(x => coins.Contains(x.CoinSymbol) && x.Date >= opts.StartDate && x.Date <= opts.EndDate).ToList().GroupBy(x => x.CoinSymbol).ToDictionary(x => x.Key, x => x.ToDictionary(z => z.Date, z => z));
+        var dates = GetDateRange((DateTime)opts.StartDate!, (DateTime)opts.EndDate!, mcapData, (DcaInterval)opts.DcaInterval!).ToList();
         var carriedFunds = 0f;
 
         for (var i = 0; i < dates.Count; i++)
@@ -28,12 +28,12 @@ public class TopCoinsETF
             carriedFunds = 0f;
             var carryingFunds = 0f;
             var currentValue = 0f;
-            var extraFunds = SellDropped(dates[i].Coins.Take((int)(numCoins + Math.Round(numCoins * 0.1f)))!, dates[i].Date);
-            var coinList = dates[i].Coins.Where(x => !ignored.Contains(x.ToLower()));
+            var extraFunds = SellDropped(dates[i].Coins.Take((int)((int)opts.MarketCapRankingMax! + Math.Round((int)opts.MarketCapRankingMax! * 0.1f)))!, dates[i].Date);
+            var coinList = dates[i].Coins.Where(x => !opts.IgnoredCoins!.Contains(x.ToLower()));
 
 
-            var min = Math.Min(numCoins, coinList.Count());
-            var totDcaAmnt = (extraFunds + dcaAmnt + carriedFunds) / min;
+            var min = Math.Min((int)opts.MarketCapRankingMax!, coinList.Count());
+            var totDcaAmnt = (extraFunds + (float)opts.FiatPurchaseAmount! + carriedFunds) / min;
 
             if (coinList.Count() == 0)
             {
@@ -49,12 +49,12 @@ public class TopCoinsETF
                 }
 
                 if (!_purchases.ContainsKey(coin)) _purchases.Add(coin, new List<float>());
-                if (!_profits.ContainsKey(coin)) _profits.Add(coin, new CoinPriceHolder());
+                if (!_profits.ContainsKey(coin)) _profits.Add(coin, new CoinPurchase());
 
                 _lastKnownPrices[coin] = (float)coinPrice;
-                _profits[coin].Spent += totDcaAmnt;
+                _profits[coin].Spent += (decimal)totDcaAmnt;
                 _purchases[coin].Add(totDcaAmnt / (float)coinPrice);
-                _profits[coin].Value = (float)coinPrice * _purchases[coin].Sum();
+                _profits[coin].Value = (decimal)coinPrice * (decimal)_purchases[coin].Sum();
                 currentValue += (float)coinPrice * _purchases[coin].Sum();
                 if (currentValue == 0)
                 {
@@ -66,7 +66,7 @@ public class TopCoinsETF
             {
                 Date = dates[i].Date,
                 Value = currentValue,
-                Spent = ((i + 1) * dcaAmnt) - carryingFunds
+                Spent = ((i + 1) * (float)opts.FiatPurchaseAmount!) - carryingFunds
             };
 
             _portfolioValue.Add(snapshot);

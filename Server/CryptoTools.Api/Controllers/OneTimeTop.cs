@@ -1,4 +1,5 @@
-﻿using CryptoTools.Api.PortfolioStrategies;
+﻿using CryptoTools.Core.Models;
+using CryptoTools.Core.PortfolioStrategies;
 using Microsoft.AspNetCore.Mvc;
 using System.Globalization;
 
@@ -8,15 +9,13 @@ namespace CryptoTools.Api.Controllers;
 [ApiController]
 public class OneTimeTop : ControllerBase
 {
+    private readonly OneTimeBuyTheTop _strategy;
+    public OneTimeTop(OneTimeBuyTheTop strategy) => _strategy = strategy;
     [HttpGet]
-    public IActionResult Get(int amnt, int numCoins, string start, string end, string? ignored = null)
+    public IActionResult Get(StrategyOptions opts)
     {
-        var startDate = DateTime.ParseExact(start, "yyyyMMdd", CultureInfo.InvariantCulture);
-        var endDate = DateTime.ParseExact(end, "yyyyMMdd", CultureInfo.InvariantCulture);
-        var ignoredCoins = ignored != null ? ignored.Split(",") : Array.Empty<string>();
-
-        var portfolio = new OneTimeBuyTheTop();
-        var res = portfolio.Run(amnt, numCoins, startDate, endDate, ignoredCoins);
+        opts.IgnoredCoins ??= new List<string>();
+        var res = _strategy.Run(opts);
         return Ok(res);
     }
 }

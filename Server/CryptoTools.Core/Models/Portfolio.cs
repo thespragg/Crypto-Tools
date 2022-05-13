@@ -10,7 +10,8 @@ public class Portfolio
     public decimal Spent { get; set; }
     public decimal PortfolioValue { get => SoldValue + CoinValue; }
     public decimal PortfolioProfit { get => PortfolioValue - Spent; }
-
+    private readonly CryptoToolsDbContext _db;
+    public Portfolio(CryptoToolsDbContext db) => (_db) = (db);
     public void Buy(string symbol, decimal price, decimal spent)
     {
         var coin = Coins.FirstOrDefault(x => x.Symbol == symbol);
@@ -53,10 +54,9 @@ public class Portfolio
 
     public void UpdatePortfolioValue(DateTime date)
     {
-        var db = new CryptoToolsDbContext();
         foreach (var coin in Coins)
         {
-            var price = db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == coin.Symbol && x.Date == date);
+            var price = _db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == coin.Symbol && x.Date == date);
             if (price == null) continue;
             coin.Value = (decimal)coin.Purchases.Sum(x => x.Quantity) * price.Price;
         }

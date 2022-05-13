@@ -5,7 +5,7 @@ namespace CryptoTools.Core.DAL;
 
 public class CryptoToolsDbContext : DbContext
 {
-    public CryptoToolsDbContext() { }
+    public CryptoToolsDbContext(DbContextOptions<CryptoToolsDbContext> opts) : base(opts) { }
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder) { }
     protected override void OnModelCreating(ModelBuilder modelBuilder) { }
     public DbSet<CoinPrice> CoinPrices { get; set; }

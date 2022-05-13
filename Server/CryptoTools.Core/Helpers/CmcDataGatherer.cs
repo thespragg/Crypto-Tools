@@ -1,5 +1,6 @@
 ﻿using CryptoTools.Core.DAL;
 using CryptoTools.Core.DAL.Models;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Globalization;
 using System.Net;
@@ -27,13 +28,15 @@ public class CmcDataGatherer : IHostedService
     };
 
     private readonly List<string> UsedProxies = new List<string>();
+    private CryptoToolsDbContext _db;
+    private readonly IServiceProvider _serviceProvider;
+    public CmcDataGatherer(IServiceProvider serviceProvider) => (_httpClient, _serviceProvider) = (GenerateNewClient(), serviceProvider);
 
-    public CmcDataGatherer() => _httpClient = GenerateNewClient();
-
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
-        Get();
-        return Task.CompletedTask;
+        using var scope = _serviceProvider.CreateScope();
+        _db = scope.ServiceProvider.GetService<CryptoToolsDbContext>()!;
+        await Get();
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -78,102 +81,103 @@ public class CmcDataGatherer : IHostedService
         return client;
     }
 
-    public void Get()
+    public async Task Get()
     {
-        var _db = new CryptoToolsDbContext();
-        new Thread(async () =>
+        var date = DateTime.ParseExact(_startDate, "yyyyMMdd", CultureInfo.InvariantCulture);
+
+    retry:
+        while (date < DateTime.Today)
         {
-            var date = DateTime.ParseExact(_startDate, "yyyyMMdd", CultureInfo.InvariantCulture);
-
-        retry:
-            while (date < DateTime.Today)
+            try
             {
-                try
+                var top = new MarketCapRanking
                 {
-                    var top = new MarketCapRanking
-                    {
-                        Date = date
-                    };
+                    Date = date
+                };
 
-                    var existing = _db.MarketCapRankings.FirstOrDefault(x => x.Date == date);
-                    if (existing != null)
-                    {
-                        date = date.AddDays(1);
-                        continue;
-                    }
-
-                    var test = await _httpClient.GetAsync($"historical?convert=USD&date={date:yyyy-MM-dd}&limit=500&start=1");
-                    var buffer = await test.Content.ReadAsByteArrayAsync();
-                    var byteArray = buffer.ToArray();
-                    var responseString = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length);
-                    var res = JsonSerializer.Deserialize<CMCMarketCapData>(responseString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    if (res?.Data == null)
-                    {
-                        _httpClient = GenerateNewClient();
-                        goto retry;
-                    }
-                    top.Coins = res!.Data!.Where(x => string.IsNullOrEmpty(x.Name)).Select(x => x.Name!).ToList();
-                    _db.MarketCapRankings.Add(top);
-
-                    foreach (var coin in res.Data!)
-                    {
-                        var storedCoin = _db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == coin.Symbol && x.Date == date);
-                        if (storedCoin == null)
-                        {
-                            storedCoin = _db.CoinPrices.Add(new CryptoTools.Core.DAL.Models.CoinPrice
-                            {
-                                Date = date,
-                                CoinSymbol = coin.Symbol!,
-                                Price = (decimal)coin.Price,
-                                MarketCapRank = coin.CMCRank ?? 0
-                            }).Entity;
-                        }
-                    }
-
-                    _db.SaveChanges();
-                    Thread.Sleep(2000);
+                var existing = _db.MarketCapRankings.FirstOrDefault(x => x.Date == date);
+                if (existing != null)
+                {
                     date = date.AddDays(1);
+                    continue;
                 }
-                catch
+
+                var test = await _httpClient.GetAsync($"historical?convert=USD&date={date:yyyy-MM-dd}&limit=500&start=1");
+                var buffer = await test.Content.ReadAsByteArrayAsync();
+                var byteArray = buffer.ToArray();
+                var responseString = Encoding.UTF8.GetString(byteArray, 0, byteArray.Length);
+                var res = JsonSerializer.Deserialize<CMCMarketCapData>(responseString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (res?.Data == null)
                 {
-
+                    _httpClient = GenerateNewClient();
+                    goto retry;
                 }
+                top.Coins = res!.Data!.Where(x => !string.IsNullOrEmpty(x.Name)).Select(x => x.Symbol!).ToList();
+                _db.MarketCapRankings.Add(top);
+                _db.SaveChanges();
+                
+                var dict = res.Data!.GroupBy(x=>x.Symbol!).ToDictionary(x => x.Key, x => x.OrderBy(x=>x.CMC_Rank).First());
+                var allPrices = _db.CoinPrices.Where(x => x.Date == date);
+
+                if (allPrices.Count() == res.Data!.Count)
+                {
+                    continue;
+                }
+
+                var coins = res.Data!.Where(x => dict.ContainsKey(x.Name!)).ToList().Select(x => new CoinPrice
+                {
+                    Date = date,
+                    CoinSymbol = x.Symbol!,
+                    Price = (decimal)x.Price,
+                    MarketCapRank = x.CMC_Rank ?? 0
+                });
+                if (!coins.Any()) continue;
+
+                _db.CoinPrices.AddRange(coins);
+                _db.SaveChanges();
+                _db.ChangeTracker.Clear();
+
+                Thread.Sleep(1000);
+                date = date.AddDays(1);
             }
-
-        }).Start();
-    }
-
-    class CMCMarketCapData
-    {
-        public List<TimestampedPrice>? Data { get; set; }
-    }
-
-    class TimestampedPrice
-    {
-        public DateTime Date { get; set; }
-        public string? Name { get; set; }
-        public string? Symbol { get; set; }
-        public int? CMCRank { get; set; }
-        public Quote? PriceHolder { get; set; }
-        public float Price
-        {
-            get
+            catch(Exception ex)
             {
-                if (PriceHolder == null) return 0f;
-                if (PriceHolder.Price == null) return 0f;
-                if (PriceHolder.Price.Price == null) return 0f;
-                return (float)PriceHolder.Price.Price;
+                _httpClient = GenerateNewClient();
             }
         }
     }
 
-    class PriceHolder
+    public class CMCMarketCapData
     {
-        public double? Price { get; set; }
+        public List<TimestampedPrice>? Data { get; set; }
     }
 
-    class Quote
+    public class TimestampedPrice
     {
-        public PriceHolder? Price { get; set; }
+        public DateTime Date { get; set; }
+        public string? Name { get; set; }
+        public string? Symbol { get; set; }
+        public int? CMC_Rank { get; set; }
+        public Quote? Quote { get; set; }
+        public float Price
+        {
+            get
+            {
+                if (Quote == null) return 0f;
+                if (Quote.USD == null) return 0f;
+                if (Quote.USD.Price == null) return 0f;
+                return (float)Quote.USD.Price;
+            }
+        }
+    }
+
+    public class Quote
+    {
+        public PriceHolder USD { get; set; }
+    }
+
+    public class PriceHolder
+    {
+        public double? Price { get; set; }
     }
 }

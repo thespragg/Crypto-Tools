@@ -1,64 +1,55 @@
 ﻿using CryptoTools.Core.DAL;
 using CryptoTools.Core.Models;
+using CryptoTools.Core.Strategies;
 
 namespace CryptoTools.Core.PortfolioStrategies;
 
-public class BuyTheDip
+public class BuyTheDip : ITradeStrategy<BuyTheDip>
 {
-    public (decimal, float, List<CoinProfit>) Run(int amnt, DateTime start, DateTime end, int top, int dropPercent, int returnPercent)
+    private readonly CryptoToolsDbContext _db;
+    private readonly Portfolio _portfolio;
+    public BuyTheDip(CryptoToolsDbContext db, Portfolio portfolio) => (_db, _portfolio) = (db, portfolio);
+    public SimulationResult Run(StrategyOptions opts)
     {
-        var profit = (decimal)0;
-        var totalSpent = 0f;
-        var portfolio = new Dictionary<string, decimal>();
-        var results = new List<CoinProfit>();
-        var db = new CryptoToolsDbContext();
-        try
+        var coins = _db.MarketCapRankings.SelectMany(x => x.Coins).Distinct().ToList();
+
+        DateTime? period = opts.StartDate;
+        while (period != null)
         {
-            var coins = db.CoinPrices.Select(x=>x.CoinSymbol).Distinct().ToList();
-            
-            int periodCount = 0;
-            DateTime? period = start;
-            while (period != null)
+            var pricesInPeriod = _db.CoinPrices.Where(x => coins.Contains(x.CoinSymbol) && x.Date == period).ToDictionary(x=>x.CoinSymbol, x=>x);
+
+            foreach(var coin in coins)
             {
-
-                periodCount += 1;
-                foreach (var coin in coins)
+                if(!pricesInPeriod.ContainsKey(coin)) continue;
+                var portfolioCoin = _portfolio.Coins.FirstOrDefault(x => x.Symbol == coin);
+                if (portfolioCoin != null)
                 {
-                    var price = db.CoinPrices.FirstOrDefault(x=>x.CoinSymbol == coin && x.Date == period);
-                    if (price == null) continue;
-                    if (portfolio.ContainsKey(coin))
-                    {
-                        if (portfolio[coin] * price!.Price / 10 * 100 > returnPercent)
-                        {
-                            profit += portfolio[coin] * price!.Price;
-                            results.Add(new CoinProfit(coin, (portfolio[coin] * price!.Price) - 10));
-                            portfolio.Remove(coin);
-                        }
-                        continue;
-                    }
-                    if (price!.MarketCapRank > top) continue;
-
-                    var pricesInPeriod = db.CoinPrices.Where(x => x.CoinSymbol == coin && x.Date <= period && x.Date >= period.Value.AddDays(-3)).ToList();
-                    if (100 - (pricesInPeriod.Last().Price / pricesInPeriod.First().Price * 100) > dropPercent)
-                    {
-                        portfolio.Add(coin, amnt * price!.Price);
-                        totalSpent += amnt;
-                    }
+                    var shouldSell = SellThresholdReached(opts.TakeProfitPercent!.Value, portfolioCoin.Purchases.First().Price, pricesInPeriod[coin].Price);
+                    _portfolio.Sell(coin, pricesInPeriod[coin].Price);
+                    _portfolio.UpdatePortfolioValue(period.Value);
+                    continue;
                 }
-                period = period.Value.AddDays(1);
-                if (period.Value > end) period = null;
+                if (pricesInPeriod[coin].MarketCapRank > opts.MarketCapRankingMax) continue;
+
+                var shouldBuy = DropThresholdReached(coin, period!.Value, opts.Timeframe!.Value, opts.PurchaseThresholdPercent!.Value);
+                if(!shouldBuy) continue;
+                _portfolio.Buy(coin, pricesInPeriod[coin].Price, opts.FiatPurchaseAmount!.Value);
+                _portfolio.UpdatePortfolioValue(period.Value);
             }
-        }
-        catch
-        {
-            return (0, 0f, new List<CoinProfit>());
-        }
 
-        foreach(var coin in portfolio)
-        {
-            results.Add(new CoinProfit(coin.Key, -10));
+            period = period.Value.AddDays(1);
+            if (period.Value > opts.EndDate) period = null;
         }
-
-        return (results.Sum(x=>x.Profit), totalSpent, results);
+        return new SimulationResult(new List<PortfolioSnapshot>(), new List<CoinProfit>());
     }
+
+    private bool DropThresholdReached(string symbol, DateTime date, int timeframe, float dropPercent)
+    {
+        var pricesInTimeframe = _db.CoinPrices.Where(x => x.CoinSymbol == symbol && x.Date <= date && x.Date >= date.AddDays(timeframe)).OrderBy(x=>x.Date).ToList();
+        return 100 - (pricesInTimeframe.Last().Price / pricesInTimeframe.First().Price * 100) > (decimal)dropPercent;
+    }
+
+    private bool SellThresholdReached(float takeProfitPercent, decimal currentPrice, decimal buyPrice) => currentPrice / currentPrice * 100 > (decimal)takeProfitPercent;
+
+    public bool ValidateOptions(StrategyOptions opts) => opts.StartDate.HasValue && opts.EndDate.HasValue && opts.TakeProfitPercent.HasValue && opts.PurchaseThresholdPercent.HasValue && opts.MarketCapRankingMax.HasValue && opts.FiatPurchaseAmount.HasValue && opts.Timeframe.HasValue;
 }

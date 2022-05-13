@@ -1,4 +1,4 @@
-﻿namespace CryptoTools.Core.Models;
+﻿namespace CryptoTools.Core.Enums;
 
 public enum DcaInterval
 {

@@ -1,8 +1,4 @@
-﻿using CryptoTools.Api.PortfolioStrategies;
-using CryptoTools.Api.Services;
-using CryptoTools.Core;
-using CryptoTools.Core.DAL;
-using Microsoft.EntityFrameworkCore;
+﻿using CryptoTools.Core;
 
 namespace CryptoTools.Api;
 
@@ -23,16 +19,7 @@ public class Startup
 
         services.AddControllers();
 
-        DepedencyInjector.ConfigureIOC(services);
-
-        services.AddTransient<TopCoinsETF>();
-
-        services.AddHostedService<CoinPriceTimerService>();
-        services.AddHostedService<MarketCapCollectionService>();
-
-        services.AddEntityFrameworkNpgsql().AddDbContext<CryptoToolsDbContext>(opt =>
-            opt.UseNpgsql(Configuration.GetConnectionString("CryptoToolsDbConnection")));
-
+        DepedencyInjector.ConfigureIOC(services, Configuration);
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
     }
