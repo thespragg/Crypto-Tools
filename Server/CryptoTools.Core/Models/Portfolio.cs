@@ -1,65 +1,61 @@
 ﻿using CryptoTools.Core.DAL;
+using CryptoTools.Core.Interfaces;
 
 namespace CryptoTools.Core.Models;
 
-public class Portfolio
+public class Portfolio : IPortfolio
 {
-    public List<PortfolioCoin> Coins { get; set; } = new List<PortfolioCoin>();
-    public decimal CoinValue { get; set; }
-    public decimal SoldValue { get; set; }
-    public decimal Spent { get; set; }
-    public decimal PortfolioValue { get => SoldValue + CoinValue; }
-    public decimal PortfolioProfit { get => PortfolioValue - Spent; }
+    public Dictionary<string, PortfolioCoin> Coins { get; set; } = new Dictionary<string, PortfolioCoin>();
+    private decimal SoldValue { get; set; } = 0;
+    private List<PortfolioSnapshot> Snapshots { get; set; } = new List<PortfolioSnapshot>();
     private readonly CryptoToolsDbContext _db;
     public Portfolio(CryptoToolsDbContext db) => (_db) = (db);
+
+    public Dictionary<string, PortfolioCoin> GetCoins() => Coins;
+    public PortfolioCoin? GetCoin(string symbol)
+    {
+        if(!Coins.ContainsKey(symbol)) return null;
+        return Coins[symbol];
+    }
+    public decimal GetValue(DateTime date)
+    {
+        var value = (decimal)0;
+        foreach (var (key, coin) in Coins)
+        {
+            var price = _db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == key && x.Date == date);
+            if (price == null) continue;
+            value += (decimal)coin.Quantity * price.Price;
+        }
+        return value + SoldValue;
+    }
+
+    public decimal GetSpent() => Coins.Values.Sum(x => x.Spent);
+
+    public decimal GetProfit(DateTime date) => GetValue(date) - GetSpent();
+
     public void Buy(string symbol, decimal price, decimal spent)
     {
-        var coin = Coins.FirstOrDefault(x => x.Symbol == symbol);
-        if (coin == null)
+        var purchase = new CoinPurchase((float)(spent / price), price);
+        if (Coins.ContainsKey(symbol)) Coins[symbol].Purchases.Add(purchase);
+        else Coins.Add(symbol, new PortfolioCoin(symbol)
         {
-            coin = new PortfolioCoin(symbol);
-            Coins.Add(coin);
-        }
-        var purchaseQuantity = spent / price;
-        coin.Purchases.Add(new CoinPurchase((float)purchaseQuantity, price));
-        Spent += spent;
+            Purchases = new List<CoinPurchase> { purchase }
+        });
     }
 
     public void Sell(string symbol, decimal price, float? quantity = null)
     {
-        var coin = Coins.FirstOrDefault(x => x.Symbol == symbol);
-        if (quantity == null)
-        {
-            var totalQuantity = coin!.Purchases.Sum(x => x.Quantity);
-            var value = (decimal)totalQuantity * price;
-            SoldValue += value;
-            Coins.Remove(coin);
-        }
-        else
-        {
-            SoldValue += (decimal)quantity.Value * price;
-            var purchases = new List<CoinPurchase>(coin!.Purchases);
-            purchases.Reverse();
-            foreach(var purchase in purchases)
-            {
-                if (quantity - purchase.Quantity >= 0)
-                {
-                    coin.Purchases.Remove(purchase);
-                    quantity -= purchase.Quantity;
-                }
-                else coin.Purchases.Last().Quantity -= quantity.Value;
-            }
-        }
+        if (quantity == null) quantity = Coins[symbol].Quantity;
+        SoldValue += (decimal)quantity.Value * price;
+        Coins[symbol].RemoveQuantity(quantity);
     }
 
-    public void UpdatePortfolioValue(DateTime date)
+    public List<PortfolioSnapshot> GetSnapshots() => Snapshots;
+
+    public void TakeSnapshot(DateTime date) => Snapshots.Add(new PortfolioSnapshot
     {
-        foreach (var coin in Coins)
-        {
-            var price = _db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == coin.Symbol && x.Date == date);
-            if (price == null) continue;
-            coin.Value = (decimal)coin.Purchases.Sum(x => x.Quantity) * price.Price;
-        }
-        CoinValue = Coins.Sum(x => x.Value);
-    }
+        Date = date,
+        Spent = GetSpent(),
+        Value = GetValue(date)
+    });
 }

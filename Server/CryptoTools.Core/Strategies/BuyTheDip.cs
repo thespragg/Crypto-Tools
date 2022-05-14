@@ -1,4 +1,5 @@
 ﻿using CryptoTools.Core.DAL;
+using CryptoTools.Core.Interfaces;
 using CryptoTools.Core.Models;
 using CryptoTools.Core.Strategies;
 
@@ -7,9 +8,9 @@ namespace CryptoTools.Core.PortfolioStrategies;
 public class BuyTheDip : ITradeStrategy<BuyTheDip>
 {
     private readonly CryptoToolsDbContext _db;
-    private readonly Portfolio _portfolio;
-    public BuyTheDip(CryptoToolsDbContext db, Portfolio portfolio) => (_db, _portfolio) = (db, portfolio);
-    public SimulationResult Run(StrategyOptions opts)
+    private readonly IPortfolio _portfolio;
+    public BuyTheDip(CryptoToolsDbContext db, IPortfolio portfolio) => (_db, _portfolio) = (db, portfolio);
+    public IPortfolio Run(StrategyOptions opts)
     {
         var coins = _db.MarketCapRankings.SelectMany(x => x.Coins).Distinct().ToList();
 
@@ -21,12 +22,11 @@ public class BuyTheDip : ITradeStrategy<BuyTheDip>
             foreach(var coin in coins)
             {
                 if(!pricesInPeriod.ContainsKey(coin)) continue;
-                var portfolioCoin = _portfolio.Coins.FirstOrDefault(x => x.Symbol == coin);
+                var portfolioCoin = _portfolio.GetCoin(coin);
                 if (portfolioCoin != null)
                 {
                     var shouldSell = SellThresholdReached(opts.TakeProfitPercent!.Value, portfolioCoin.Purchases.First().Price, pricesInPeriod[coin].Price);
                     _portfolio.Sell(coin, pricesInPeriod[coin].Price);
-                    _portfolio.UpdatePortfolioValue(period.Value);
                     continue;
                 }
                 if (pricesInPeriod[coin].MarketCapRank > opts.MarketCapRankingMax) continue;
@@ -34,13 +34,13 @@ public class BuyTheDip : ITradeStrategy<BuyTheDip>
                 var shouldBuy = DropThresholdReached(coin, period!.Value, opts.Timeframe!.Value, opts.PurchaseThresholdPercent!.Value);
                 if(!shouldBuy) continue;
                 _portfolio.Buy(coin, pricesInPeriod[coin].Price, opts.FiatPurchaseAmount!.Value);
-                _portfolio.UpdatePortfolioValue(period.Value);
             }
 
+            _portfolio.TakeSnapshot(period.Value);
             period = period.Value.AddDays(1);
             if (period.Value > opts.EndDate) period = null;
         }
-        return new SimulationResult(new List<PortfolioSnapshot>(), new List<CoinProfit>());
+        return _portfolio;
     }
 
     private bool DropThresholdReached(string symbol, DateTime date, int timeframe, float dropPercent)

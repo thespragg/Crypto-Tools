@@ -1,61 +1,52 @@
 ﻿using CryptoTools.Core.DAL;
 using CryptoTools.Core.DAL.Models;
+using CryptoTools.Core.Interfaces;
 using CryptoTools.Core.Models;
+using CryptoTools.Core.Strategies;
 
 namespace CryptoTools.Core.PortfolioStrategies;
 
-public class OneTimeBuyTheTop
+public class OneTimeBuyTheTop : ITradeStrategy<OneTimeBuyTheTop>
 {
     private readonly CryptoToolsDbContext _db;
-    public OneTimeBuyTheTop(CryptoToolsDbContext db) => _db = db;
-    private Dictionary<string, List<CoinPrice>> _prices { get; set; } = new Dictionary<string, List<CoinPrice>>();
-    public SimulationResult? Run(StrategyOptions opts)
+    private readonly IPortfolio _portfolio;
+    public OneTimeBuyTheTop(CryptoToolsDbContext db, IPortfolio portfolio) => (_db, _portfolio) = (db, portfolio);
+    public IPortfolio? Run(StrategyOptions opts)
     {
-        var portfolioValue = new List<PortfolioSnapshot>();
-        var portfolio = new Dictionary<string, float>();
         var lastKnownPrices = new Dictionary<string, decimal>();
 
-        var mcapData = _db.MarketCapRankings.Where(x => x.Date >= opts.StartDate && x.Date <= opts.EndDate).ToList().Select(x => { x.Coins = x.Coins.Take((int)opts.MarketCapRankingMax!).ToList(); return x; });
-
-        var coins = mcapData.Select(x => x.Coins.Take((int)opts.MarketCapRankingMax!)).SelectMany(x => x).Distinct().ToList();
-        _prices = GetPrices(coins, (DateTime)opts.StartDate!, (DateTime)opts.EndDate!);
-
-        foreach (var period in mcapData)
+        DateTime? period = opts.StartDate;
+        while (period != null)
         {
-            var periodCoins = period.Coins.Take((int)opts.MarketCapRankingMax!);
-            var missing = periodCoins.Where(x => !opts.IgnoredCoins!.Contains(x) && !portfolio.ContainsKey(x));
+            var mcapData = _db.MarketCapRankings.FirstOrDefault(x => x.Date == period);
+            if (mcapData == null) continue;
 
-            foreach (var coin in missing)
+            var prices = _db.CoinPrices.Where(x => mcapData.Coins.Contains(x.CoinSymbol) && x.Date == period).ToDictionary(x => x.CoinSymbol, x => x);
+
+            foreach (var coin in mcapData.Coins)
             {
-                portfolio.Add(coin, 0f);
-                lastKnownPrices.Add(coin, 0);
+                if (!lastKnownPrices.ContainsKey(coin)) lastKnownPrices.Add(coin, 0);
+                decimal price;
+                if (prices.ContainsKey(coin))
+                {
+                    lastKnownPrices[coin] = prices[coin].Price;
+                    price = prices[coin].Price;
+                }
+                else price = lastKnownPrices[coin];
+
+                if (_portfolio.GetCoin(coin) == null) _portfolio.Buy(coin, price, opts.FiatPurchaseAmount!.Value);
             }
-            foreach (var coin in portfolio)
-            {
-                var price = GetPriceOnDate(coin.Key, period.Date);
-                if (price != null) lastKnownPrices[coin.Key] = (decimal)price;
-                else price = lastKnownPrices[coin.Key];
 
-                //Check if its been purchased yet
-                if (coin.Value == 0 && price != 0) portfolio[coin.Key] = (float)opts.FiatPurchaseAmount! / (float)price;
-            }
-
-            portfolioValue.Add(new PortfolioSnapshot
-            {
-                Date = period.Date,
-                Value = portfolio.Sum(x => x.Value * (float)lastKnownPrices[x.Key]),
-                Spent = portfolio.Count * (float)opts.FiatPurchaseAmount!
-            });
+            _portfolio.TakeSnapshot(period.Value);
+            period.Value.AddDays(opts.Timeframe!.Value);
+            if (period.Value > opts.EndDate) period = null;
         }
 
-        return new SimulationResult(portfolioValue, portfolio.Select(x => new CoinProfit(x.Key, (lastKnownPrices[x.Key] * (decimal)x.Value) - (decimal)opts.FiatPurchaseAmount!)).ToList());
+        return _portfolio;
     }
 
-    private decimal? GetPriceOnDate(string coin, DateTime date)
+    public bool ValidateOptions(StrategyOptions opts)
     {
-        if (!_prices.ContainsKey(coin)) return null;
-        return _prices[coin].FirstOrDefault(x => x.Date == date)?.Price;
+        throw new NotImplementedException();
     }
-
-    private Dictionary<string, List<CoinPrice>> GetPrices(IList<string> coins, DateTime start, DateTime end) => _db.CoinPrices.Where(x => coins.Contains(x.CoinSymbol) && x.Date >= start && x.Date <= end).GroupBy(x => x.CoinSymbol).ToDictionary(x => x.Key, x => x.ToList());
 }

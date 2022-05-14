@@ -1,9 +1,10 @@
-﻿using CryptoTools.Core.Models;
+﻿using CryptoTools.Core.Interfaces;
+using CryptoTools.Core.Models;
 
 namespace CryptoTools.Core.Strategies;
 
 public interface ITradeStrategy<T>
 {
-    SimulationResult Run(StrategyOptions opts);
+    IPortfolio? Run(StrategyOptions opts);
     bool ValidateOptions(StrategyOptions opts);
 }

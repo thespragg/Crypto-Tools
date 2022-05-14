@@ -14,6 +14,6 @@ public class StrategyOptions
     public float? PurchaseThresholdPercent { get; set; }
     public Dictionary<string, float>? CoinPurchaseAllocations { get; set; }
     public DcaInterval? DcaInterval { get; set; }
-    public List<string>? IgnoredCoins { get; set; }
+    public List<string> IgnoredCoins { get; set; } = new List<string>();
     public int? Timeframe { get; set; }
 }

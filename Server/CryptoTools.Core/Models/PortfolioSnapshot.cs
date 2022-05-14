@@ -3,13 +3,10 @@ namespace CryptoTools.Core.Models;
 public class PortfolioSnapshot
 {
     public DateTime Date { get; set; }
-    public float Value { get; set; }
-    public float Spent { get; set; }
-    public float Profit
+    public decimal Value { get; set; }
+    public decimal Spent { get; set; }
+    public decimal Profit
     {
-        get
-        {
-            return Value - Spent;
-        }
+        get => Value - Spent;
     }
 }
