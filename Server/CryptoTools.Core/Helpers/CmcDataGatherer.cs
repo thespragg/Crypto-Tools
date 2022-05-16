@@ -2,6 +2,7 @@
 using CryptoTools.Core.DAL.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System.Globalization;
 using System.Net;
 using System.Text;
@@ -30,7 +31,8 @@ public class CmcDataGatherer : IHostedService
     private readonly List<string> UsedProxies = new List<string>();
     private CryptoToolsDbContext _db;
     private readonly IServiceProvider _serviceProvider;
-    public CmcDataGatherer(IServiceProvider serviceProvider) => (_httpClient, _serviceProvider) = (GenerateNewClient(), serviceProvider);
+    private readonly ILogger<CmcDataGatherer> _logger;
+    public CmcDataGatherer(IServiceProvider serviceProvider, ILogger<CmcDataGatherer> logger) => (_httpClient, _serviceProvider, _logger) = (GenerateNewClient(), serviceProvider, logger);
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -88,6 +90,9 @@ public class CmcDataGatherer : IHostedService
     retry:
         while (date < DateTime.Today)
         {
+            _logger.LogInformation("Processing date: {date}", date.ToString("dd/MM/yyyy"));
+            var days = (DateTime.Today - date).TotalDays;
+
             try
             {
                 var top = new MarketCapRanking
@@ -96,11 +101,6 @@ public class CmcDataGatherer : IHostedService
                 };
 
                 var existing = _db.MarketCapRankings.FirstOrDefault(x => x.Date == date);
-                if (existing != null)
-                {
-                    date = date.AddDays(1);
-                    continue;
-                }
 
                 var test = await _httpClient.GetAsync($"historical?convert=USD&date={date:yyyy-MM-dd}&limit=500&start=1");
                 var buffer = await test.Content.ReadAsByteArrayAsync();
@@ -113,34 +113,42 @@ public class CmcDataGatherer : IHostedService
                     goto retry;
                 }
                 top.Coins = res!.Data!.Where(x => !string.IsNullOrEmpty(x.Name)).Select(x => x.Symbol!).ToList();
-                _db.MarketCapRankings.Add(top);
-                _db.SaveChanges();
-                
-                var dict = res.Data!.GroupBy(x=>x.Symbol!).ToDictionary(x => x.Key, x => x.OrderBy(x=>x.CMC_Rank).First());
-                var allPrices = _db.CoinPrices.Where(x => x.Date == date);
-
-                if (allPrices.Count() == res.Data!.Count)
+                if (existing != null)
                 {
+                    _db.MarketCapRankings.Add(top);
+                    _db.SaveChanges();
+                }
+
+                var dict = res.Data!.GroupBy(x => x.Symbol!).ToDictionary(x => x.Key, x => x.OrderBy(x => x.CMC_Rank).First());
+                var allPrices = _db.CoinPrices.Where(x => x.Date == date).ToList().GroupBy(x => x.CoinSymbol).ToDictionary(x => x.Key, x => x.OrderBy(x => x.MarketCapRank).First());
+
+                if (allPrices.Count == res.Data!.Count)
+                {
+                    date = date.AddDays(1);
                     continue;
                 }
 
-                var coins = res.Data!.Where(x => dict.ContainsKey(x.Name!)).ToList().Select(x => new CoinPrice
+                var coins = res.Data!.Where(x => dict.ContainsKey(x.Name!) && !allPrices.ContainsKey(x.Name)).ToList().Select(x => new CoinPrice
                 {
                     Date = date,
                     CoinSymbol = x.Symbol!,
                     Price = (decimal)x.Price,
                     MarketCapRank = x.CMC_Rank ?? 0
                 });
-                if (!coins.Any()) continue;
+                if (!coins.Any())
+                {
+                    date = date.AddDays(1);
+                    continue;
+                }
 
                 _db.CoinPrices.AddRange(coins);
                 _db.SaveChanges();
                 _db.ChangeTracker.Clear();
 
-                Thread.Sleep(1000);
+                Thread.Sleep(500);
                 date = date.AddDays(1);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 _httpClient = GenerateNewClient();
             }

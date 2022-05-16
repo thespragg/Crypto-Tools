@@ -18,13 +18,15 @@ public class GenericDCA : ITradeStrategy<GenericDCA>
         var period = opts.StartDate;
         while (period != null)
         {
-            var prices = _db.CoinPrices.Where(x => lastKnownPrices.ContainsKey(x.CoinSymbol) && x.Date == period).ToDictionary(x => x.CoinSymbol, x => x.Price);
+            var prices = _db.CoinPrices.Where(x => lastKnownPrices.Keys.Contains(x.CoinSymbol) && x.Date == period).ToDictionary(x => x.CoinSymbol, x => x.Price);
             var missing = opts.CoinPurchaseAllocations!.Where(x => !prices.ContainsKey(x.Key));
             var extraAllocation = missing.Sum(x => x.Value) / (opts.CoinPurchaseAllocations!.Count - missing.Count());
+            if (float.IsNaN(extraAllocation)) extraAllocation = 0;
             
             foreach (var (coin, allocation) in opts.CoinPurchaseAllocations!)
             {
                 var dcaAmnt = opts.FiatPurchaseAmount!.Value * (decimal)((allocation + extraAllocation) / 100);
+                if (!prices.ContainsKey(coin)) continue;
                 var price = prices[coin];
                 lastKnownPrices[coin] = price;
                 _portfolio.Buy(coin, price, dcaAmnt);

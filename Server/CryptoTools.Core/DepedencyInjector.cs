@@ -3,6 +3,7 @@ using CryptoTools.Core.Helpers;
 using CryptoTools.Core.Interfaces;
 using CryptoTools.Core.Models;
 using CryptoTools.Core.PortfolioStrategies;
+using CryptoTools.Core.Strategies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,9 +22,9 @@ public class DepedencyInjector
         services.AddTransient<IPortfolio, Portfolio>();
 
         /* Strategies */
-        services.AddTransient<BuyTheDip>();
-        services.AddTransient<GenericDCA>();
-        services.AddTransient<OneTimeBuyTheTop>();
-        services.AddTransient<BuyTheDip>();
+        services.AddTransient<ITradeStrategy<BuyTheDip>, BuyTheDip>();
+        services.AddScoped<ITradeStrategy<GenericDCA>, GenericDCA>();
+        services.AddTransient<ITradeStrategy<OneTimeBuyTheTop>, OneTimeBuyTheTop>();
+        services.AddTransient<ITradeStrategy<BuyTheDip>, BuyTheDip>();
     }
 }

@@ -25,7 +25,7 @@ public class BuyTheDip : ITradeStrategy<BuyTheDip>
                 var portfolioCoin = _portfolio.GetCoin(coin);
                 if (portfolioCoin != null)
                 {
-                    var shouldSell = SellThresholdReached(opts.TakeProfitPercent!.Value, portfolioCoin.Purchases.First().Price, pricesInPeriod[coin].Price);
+                    var shouldSell = SellThresholdReached(opts.TakeProfitPercent!.Value, portfolioCoin.CurrentPurchases.First().Price, pricesInPeriod[coin].Price);
                     _portfolio.Sell(coin, pricesInPeriod[coin].Price);
                     continue;
                 }

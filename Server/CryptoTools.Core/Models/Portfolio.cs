@@ -24,7 +24,8 @@ public class Portfolio : IPortfolio
         {
             var price = _db.CoinPrices.FirstOrDefault(x => x.CoinSymbol == key && x.Date == date);
             if (price == null) continue;
-            value += (decimal)coin.Quantity * price.Price;
+            value += (decimal)coin.CurrentQuantity * price.Price;
+            coin.Value = (decimal)coin.CurrentQuantity * price.Price;
         }
         return value + SoldValue;
     }
@@ -36,16 +37,17 @@ public class Portfolio : IPortfolio
     public void Buy(string symbol, decimal price, decimal spent)
     {
         var purchase = new CoinPurchase((float)(spent / price), price);
-        if (Coins.ContainsKey(symbol)) Coins[symbol].Purchases.Add(purchase);
-        else Coins.Add(symbol, new PortfolioCoin(symbol)
+        if (Coins.ContainsKey(symbol)) Coins[symbol].CurrentPurchases.Add(purchase);
+        else
         {
-            Purchases = new List<CoinPurchase> { purchase }
-        });
+            var newCoin = new PortfolioCoin(symbol);
+            newCoin.AddPurchase(purchase);
+        }
     }
 
     public void Sell(string symbol, decimal price, float? quantity = null)
     {
-        if (quantity == null) quantity = Coins[symbol].Quantity;
+        if (quantity == null) quantity = Coins[symbol].CurrentQuantity;
         SoldValue += (decimal)quantity.Value * price;
         Coins[symbol].RemoveQuantity(quantity);
     }
