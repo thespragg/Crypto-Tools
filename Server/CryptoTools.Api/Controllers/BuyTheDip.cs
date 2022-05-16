@@ -1,5 +1,6 @@
 ﻿using CryptoTools.Core.Models;
 using CryptoTools.Core.PortfolioStrategies;
+using CryptoTools.Core.Strategies.StrategyOptions;
 using Microsoft.AspNetCore.Mvc;
 using System.Globalization;
 
@@ -13,7 +14,7 @@ namespace CryptoTools.Api.Controllers
         public BuyTheDipController(BuyTheDip strategy) => _strategy = strategy;
 
         [HttpGet]
-        public IActionResult Get(StrategyOptions opts)
+        public IActionResult Get(BuyTheDipOptions opts)
         {
             var x = _strategy.Run(opts);
             return Ok(x);

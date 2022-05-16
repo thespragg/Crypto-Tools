@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using CryptoTools.Core.DAL;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CryptoTools.Core.Migrations
 {
     [DbContext(typeof(CryptoToolsDbContext))]
-    partial class CryptoToolsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20220516103704_Add coin name")]
+    partial class Addcoinname
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

@@ -36,9 +36,12 @@ public class CmcDataGatherer : IHostedService
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        using var scope = _serviceProvider.CreateScope();
-        _db = scope.ServiceProvider.GetService<CryptoToolsDbContext>()!;
-        await Get();
+        _ = Task.Run(async () =>
+          {
+              using var scope = _serviceProvider.CreateScope();
+              _db = scope.ServiceProvider.GetService<CryptoToolsDbContext>()!;
+              await Get();
+          }, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -90,9 +93,16 @@ public class CmcDataGatherer : IHostedService
     retry:
         while (date < DateTime.Today)
         {
-            _logger.LogInformation("Processing date: {date}", date.ToString("dd/MM/yyyy"));
             var days = (DateTime.Today - date).TotalDays;
 
+            var mcapCoins = _db.MarketCapRankings.FirstOrDefault(x => x.Date == date);
+            if (mcapCoins != null)
+            {
+                date = date.AddDays(1);
+                continue;
+            }
+
+            _logger.LogInformation("Processing date: {date}", date.ToString("dd/MM/yyyy"));
             try
             {
                 var top = new MarketCapRanking
@@ -112,15 +122,18 @@ public class CmcDataGatherer : IHostedService
                     _httpClient = GenerateNewClient();
                     goto retry;
                 }
-                top.Coins = res!.Data!.Where(x => !string.IsNullOrEmpty(x.Name)).Select(x => x.Symbol!).ToList();
-                if (existing != null)
+                top.Coins = res!.Data!.Select(x => $"{x.Symbol!}-{x.Name}").ToList();
+                if (existing == null)
                 {
                     _db.MarketCapRankings.Add(top);
                     _db.SaveChanges();
                 }
 
-                var dict = res.Data!.GroupBy(x => x.Symbol!).ToDictionary(x => x.Key, x => x.OrderBy(x => x.CMC_Rank).First());
-                var allPrices = _db.CoinPrices.Where(x => x.Date == date).ToList().GroupBy(x => x.CoinSymbol).ToDictionary(x => x.Key, x => x.OrderBy(x => x.MarketCapRank).First());
+                var duplicates = res.Data!.GroupBy(x => x.Symbol).Where(x => x.Count() > 1).Select(x=>x.Key).ToList();
+                foreach(var item in res.Data!) if (duplicates.Contains(item.Symbol)) item.Symbol = item.Name;
+
+                var dict = res.Data!.ToDictionary(x => $"{x.Symbol}-{x.Name}");
+                var allPrices = _db.CoinPrices.Where(x => x.Date == date).ToList().ToDictionary(x => $"{x.CoinSymbol}-{x.CoinName}");
 
                 if (allPrices.Count == res.Data!.Count)
                 {
@@ -128,9 +141,10 @@ public class CmcDataGatherer : IHostedService
                     continue;
                 }
 
-                var coins = res.Data!.Where(x => dict.ContainsKey(x.Name!) && !allPrices.ContainsKey(x.Name)).ToList().Select(x => new CoinPrice
+                var coins = res.Data!.Where(x => dict.ContainsKey($"{x.Symbol}-{x.Name}") && !allPrices.ContainsKey($"{x.Symbol}-{x.Name}")).ToList().Select(x => new CoinPrice
                 {
                     Date = date,
+                    CoinName = x.Name!,
                     CoinSymbol = x.Symbol!,
                     Price = (decimal)x.Price,
                     MarketCapRank = x.CMC_Rank ?? 0

@@ -30,18 +30,31 @@ public class Portfolio : IPortfolio
         return value + SoldValue;
     }
 
+    private decimal GetValue(DateTime date, Dictionary<string, decimal> prices)
+    {
+        var value = (decimal)0;
+        foreach (var (key, coin) in Coins)
+        {
+            var success = prices.TryGetValue(key, out var price);
+            if (!success) continue;
+            value += (decimal)coin.CurrentQuantity * price;
+            coin.Value = (decimal)coin.CurrentQuantity * price;
+        }
+        return value + SoldValue;
+    }
+
     public decimal GetSpent() => Coins.Values.Sum(x => x.Spent);
 
     public decimal GetProfit(DateTime date) => GetValue(date) - GetSpent();
 
     public void Buy(string symbol, decimal price, decimal spent)
     {
-        var purchase = new CoinPurchase((float)(spent / price), price);
-        if (Coins.ContainsKey(symbol)) Coins[symbol].CurrentPurchases.Add(purchase);
+        if (Coins.ContainsKey(symbol)) Coins[symbol].AddPurchase((float)(spent / price), price);
         else
         {
             var newCoin = new PortfolioCoin(symbol);
-            newCoin.AddPurchase(purchase);
+            newCoin.AddPurchase((float)(spent / price), price);
+            Coins.Add(symbol, newCoin);
         }
     }
 
@@ -50,6 +63,7 @@ public class Portfolio : IPortfolio
         if (quantity == null) quantity = Coins[symbol].CurrentQuantity;
         SoldValue += (decimal)quantity.Value * price;
         Coins[symbol].RemoveQuantity(quantity);
+        Coins[symbol].SoldValue += (decimal)quantity.Value * price;
     }
 
     public List<PortfolioSnapshot> GetSnapshots() => Snapshots;
@@ -59,5 +73,12 @@ public class Portfolio : IPortfolio
         Date = date,
         Spent = GetSpent(),
         Value = GetValue(date)
+    });
+
+    public void TakeSnapshot(DateTime date, Dictionary<string, decimal> prices) => Snapshots.Add(new PortfolioSnapshot
+    {
+        Date = date,
+        Spent = GetSpent(),
+        Value = GetValue(date, prices)
     });
 }

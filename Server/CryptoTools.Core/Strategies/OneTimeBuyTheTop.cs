@@ -1,12 +1,10 @@
 ﻿using CryptoTools.Core.DAL;
-using CryptoTools.Core.DAL.Models;
 using CryptoTools.Core.Interfaces;
 using CryptoTools.Core.Models;
-using CryptoTools.Core.Strategies;
 
 namespace CryptoTools.Core.PortfolioStrategies;
 
-public class OneTimeBuyTheTop : ITradeStrategy<OneTimeBuyTheTop>
+public class OneTimeBuyTheTop
 {
     private readonly CryptoToolsDbContext _db;
     private readonly IPortfolio _portfolio;

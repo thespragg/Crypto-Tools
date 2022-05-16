@@ -4,11 +4,10 @@ using CryptoTools.Core.DAL.Models;
 using CryptoTools.Core.Enums;
 using CryptoTools.Core.Interfaces;
 using CryptoTools.Core.Models;
-using CryptoTools.Core.Strategies;
 
 namespace CryptoTools.Core.PortfolioStrategies;
 
-public class TopCoinsETF : ITradeStrategy<TopCoinsETF>
+public class TopCoinsETF
 {
     private readonly Dictionary<string, List<float>> _purchases = new();
     private Dictionary<string, Dictionary<DateTime, CoinPrice>> _prices = new();

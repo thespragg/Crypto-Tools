@@ -12,6 +12,8 @@ public class CoinPrice
     [Required]
     public string CoinSymbol { get; set; } = string.Empty;
     [Required]
+    public string CoinName { get; set; } = string.Empty;
+    [Required]
     public DateTime Date { get; set; }
     [Required]
     public decimal Price { get; set; }

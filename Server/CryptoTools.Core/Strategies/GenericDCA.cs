@@ -7,7 +7,7 @@ using CryptoTools.Core.Strategies;
 
 namespace CryptoTools.Core.PortfolioStrategies;
 
-public class GenericDCA : ITradeStrategy<GenericDCA>
+public class GenericDCA
 {
     private readonly CryptoToolsDbContext _db;
     private readonly IPortfolio _portfolio;
