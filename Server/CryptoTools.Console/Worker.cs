@@ -52,6 +52,49 @@ namespace CryptoTools.Console
               }, cancellationToken);
         }
 
+        private void PrintResults(Dictionary<int, List<Results>> results)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("id,Amount,Purchase Threshold,Timeframe,Max Market Cap,Take Profit,Stop Loss, Profit, Profitable Percent");
+            foreach (var (key, res) in results)
+            {
+                foreach (var result in res)
+                {
+                    sb.AppendLine($"{key},{result.Options.FiatPurchaseAmount},{result.Options.PurchaseThresholdPercent},{result.Options.Timeframe},{result.Options.MarketCapRankingMax},{result.Options.TakeProfitPercent},{result.Options.StopLossPercent},{result.Profit},{result.Profitable}");
+                }
+            }
+            File.WriteAllText("C:\\StrategyData\\Data.csv", sb.ToString());
+        }
+
+        private List<BuyTheDipOptions> ReadOptions()
+        {
+            var data = File.ReadAllLines(Path.Combine(GetApplicationRoot(), "Best.csv"));
+            var options = new List<BuyTheDipOptions>();
+            foreach (var line in data)
+            {
+                options.Add(new BuyTheDipOptions
+                {
+                    StartDate = DateTime.Parse("01/01/2018"),
+                    EndDate = DateTime.Parse("01/01/2022"),
+                    FiatPurchaseAmount = 10,
+                    PurchaseThresholdPercent = line[1],
+                    Timeframe = line[2],
+                    MarketCapRankingMax = line[3],
+                    TakeProfitPercent = line[4],
+                    TrailingTakeProfit = true,
+                    StopLossPercent = line[5]
+                });
+            }
+            return options;
+        }
+
+        private string GetApplicationRoot()
+        {
+            var exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+            if (exePath!.Contains("file:")) exePath = exePath.Remove(0, 5);
+            if (!exePath.StartsWith("/var")) exePath = AppDomain.CurrentDomain.BaseDirectory;
+            return exePath;
+        }
         private void PrintResults(List<Results> results)
         {
             var sb = new StringBuilder();
