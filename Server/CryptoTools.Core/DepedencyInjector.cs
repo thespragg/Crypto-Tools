@@ -18,7 +18,7 @@ public class DepedencyInjector
             opt.UseNpgsql(config.GetConnectionString("CryptoToolsDbConnection")));
 
         services.AddHostedService<CmcDataGatherer>();
-        services.AddTransient<IPortfolio, Portfolio>();
+        services.AddTransient<IPortfolio, TradeBasedPortfolio>();
 
         /* Strategies */
         services.AddTransient<BuyTheDip>();

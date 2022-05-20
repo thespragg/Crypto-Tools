@@ -19,4 +19,10 @@
   <ItemGroup>
     <ProjectReference Include="..\CryptoTools.Core\CryptoTools.Core.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Best.csv">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>

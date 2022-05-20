@@ -32,7 +32,7 @@ public class OneTimeBuyTheTop
                 }
                 else price = lastKnownPrices[coin];
 
-                if (_portfolio.GetCoin(coin) == null) _portfolio.Buy(coin, price, opts.FiatPurchaseAmount!.Value);
+                if (_portfolio.GetCoin(coin) == null) _portfolio.Buy(coin, price, opts.FiatPurchaseAmount!.Value, period.Value);
             }
 
             _portfolio.TakeSnapshot(period.Value);

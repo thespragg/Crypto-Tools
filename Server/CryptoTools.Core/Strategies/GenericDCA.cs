@@ -29,7 +29,7 @@ public class GenericDCA
                 if (!prices.ContainsKey(coin)) continue;
                 var price = prices[coin];
                 lastKnownPrices[coin] = price;
-                _portfolio.Buy(coin, price, dcaAmnt);
+                _portfolio.Buy(coin, price, dcaAmnt, period.Value);
             }
             _portfolio.TakeSnapshot(period.Value);
 

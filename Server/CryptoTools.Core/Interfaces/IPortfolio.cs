@@ -4,14 +4,15 @@ namespace CryptoTools.Core.Interfaces;
 
 public interface IPortfolio
 {
-    Dictionary<string, PortfolioCoin> GetCoins();
+    int TotalTrades { get; }
+    List<Trade> TradeList { get; }
+    decimal CashBalance { get; }
+    decimal StartingBalance { get; }
+    Dictionary<string, PortfolioCoin> CoinList { get; }
     PortfolioCoin? GetCoin(string symbol);
-    decimal GetValue(DateTime date);
-    decimal GetSpent();
-    decimal GetProfit(DateTime date);
     List<PortfolioSnapshot> GetSnapshots();
     void TakeSnapshot(DateTime date);
     void TakeSnapshot(DateTime date, Dictionary<string, decimal> prices);
-    void Buy(string symbol, decimal price, decimal spent);
-    void Sell(string symbol, decimal price, float? quantity = null);
+    bool Buy(string symbol, decimal price, decimal spent, DateTime day);
+    void Sell(string symbol, decimal price, DateTime day, float? quantity = null);
 }

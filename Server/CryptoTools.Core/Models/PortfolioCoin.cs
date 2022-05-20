@@ -20,7 +20,7 @@ public class PortfolioCoin
     }
     public decimal AveragePurchasePrice
     {
-        get => Spent / (decimal)CurrentQuantity;
+        get => CurrentQuantity == 0 ? 0 : Spent / (decimal)CurrentQuantity;
     }
     public decimal SoldValue { get; set; }
     public PortfolioCoin(string symbol) => (Symbol, CurrentPurchases, AllPurchases) = (symbol, new List<CoinPurchase>(), new List<CoinPurchase>());
@@ -33,18 +33,24 @@ public class PortfolioCoin
     public void RemoveQuantity(float? qty = null)
     {
         if (qty == null) qty = CurrentQuantity;
+        var toRemove = new List<int>();
         for (var i = 0; i < CurrentPurchases.Count; i++)
         {
             if (qty >= CurrentPurchases[i].Quantity)
             {
                 qty -= CurrentPurchases[i].Quantity;
-                CurrentPurchases.RemoveAt(i);
+                toRemove.Add(i);
             }
             else
             {
                 CurrentPurchases.Last().Quantity -= qty.Value;
-                return;
+                break;
             }
+        }
+        toRemove.Reverse();
+        foreach (var i in toRemove)
+        {
+            CurrentPurchases.RemoveAt(i);
         }
     }
 }
