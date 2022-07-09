@@ -17,13 +17,12 @@ public class DepedencyInjector
         services.AddDbContext<CryptoToolsDbContext>(opt =>
             opt.UseNpgsql(config.GetConnectionString("CryptoToolsDbConnection")));
 
-        services.AddHostedService<CmcDataGatherer>();
-        services.AddTransient<IPortfolio, TradeBasedPortfolio>();
+        //services.AddHostedService<CmcDataGatherer>();
 
         /* Strategies */
-        services.AddTransient<BuyTheDip>();
-        services.AddScoped<GenericDCA>();
-        services.AddTransient<OneTimeBuyTheTop>();
-        services.AddTransient<BuyTheDip>();
+        // services.AddTransient<BuyTheDip>();
+        // services.AddScoped<GenericDCA>();
+        // services.AddTransient<OneTimeBuyTheTop>();
+        // services.AddTransient<BuyTheDip>();
     }
 }

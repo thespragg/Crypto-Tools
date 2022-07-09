@@ -1,12 +1,15 @@
 ﻿
+using CryptoTools.Core.Enums;
+using CryptoTools.Core.Interfaces;
+
 namespace CryptoTools.Core.Models;
 
-public class Trade
+public class Trade: ITrade
 {
-    public DateTime Date { get; set; }
-    public string Symbol { get; set; } = string.Empty;
-    public float Quantity { get; set; }
-    public decimal Price { get; set; }
-    public TradeDirection Direction { get; set; }
-    public decimal Value {  get => (decimal)Quantity * Price; }
+    public DateTime Date { get; init; }
+    public string Symbol { get; init; } = string.Empty;
+    public float Quantity { get; init; }
+    public decimal Price { get; init; }
+    public TradeDirection Direction { get; init; }
+    public decimal Value => (decimal)Quantity * Price;
 }

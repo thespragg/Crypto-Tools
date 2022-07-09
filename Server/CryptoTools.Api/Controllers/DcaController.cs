@@ -11,14 +11,14 @@ namespace CryptoTools.Api.Controllers
     [ApiController]
     public class DcaController : ControllerBase
     {
-        private readonly GenericDCA _strategy;
-        public DcaController(GenericDCA strategy) => _strategy = strategy;
-
-        [HttpGet]
-        public IActionResult Get([FromBody] StrategyOptions opts)
-        {
-            var portfolio = _strategy.Run(opts);
-            return Ok(portfolio);
-        }
+        // private readonly GenericDCA _strategy;
+        // public DcaController(GenericDCA strategy) => _strategy = strategy;
+        //
+        // [HttpGet]
+        // public IActionResult Get([FromBody] StrategyOptions opts)
+        // {
+        //     var portfolio = _strategy.Run(opts);
+        //     return Ok(portfolio);
+        // }
     }
 }

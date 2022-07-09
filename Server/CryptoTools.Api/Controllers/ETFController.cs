@@ -10,15 +10,15 @@ namespace CryptoTools.Api.Controllers;
 [ApiController]
 public class ETFController : ControllerBase
 {
-    private readonly TopCoinsETF _topCoins;
-    public ETFController(TopCoinsETF topCoins) => (_topCoins) = (topCoins);
-
-    [HttpGet]
-    public IActionResult Get(StrategyOptions opts)
-    {
-        opts.IgnoredCoins ??= new List<string>();
-        var portfolio = _topCoins.Run(opts);
-        return Ok(portfolio);
-    }
+    // private readonly TopCoinsETF _topCoins;
+    // public ETFController(TopCoinsETF topCoins) => (_topCoins) = (topCoins);
+    //
+    // [HttpGet]
+    // public IActionResult Get(StrategyOptions opts)
+    // {
+    //     opts.IgnoredCoins ??= new List<string>();
+    //     var portfolio = _topCoins.Run(opts);
+    //     return Ok(portfolio);
+    // }
 }
 

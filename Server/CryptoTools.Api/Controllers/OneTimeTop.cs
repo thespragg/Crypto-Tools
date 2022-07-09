@@ -9,13 +9,13 @@ namespace CryptoTools.Api.Controllers;
 [ApiController]
 public class OneTimeTop : ControllerBase
 {
-    private readonly OneTimeBuyTheTop _strategy;
-    public OneTimeTop(OneTimeBuyTheTop strategy) => _strategy = strategy;
-    [HttpGet]
-    public IActionResult Get(StrategyOptions opts)
-    {
-        opts.IgnoredCoins ??= new List<string>();
-        var res = _strategy.Run(opts);
-        return Ok(res);
-    }
+    // private readonly OneTimeBuyTheTop _strategy;
+    // public OneTimeTop(OneTimeBuyTheTop strategy) => _strategy = strategy;
+    // [HttpGet]
+    // public IActionResult Get(StrategyOptions opts)
+    // {
+    //     opts.IgnoredCoins ??= new List<string>();
+    //     var res = _strategy.Run(opts);
+    //     return Ok(res);
+    // }
 }
